@@ -259,15 +259,31 @@
     }
 
     function exportarPNG() {
-      document.querySelectorAll('.del-btn, .handle-h, .handle-v').forEach(b => b.style.display = 'none');
-      html2canvas(document.getElementById('canvas'), { backgroundColor: '#ffffff' }).then(canvas => {
-        const link = document.createElement('a');
-        link.download = 'esquema-unifilar.png';
-        link.href = canvas.toDataURL('image/png');
-        link.click();
-        document.querySelectorAll('.del-btn, .handle-h, .handle-v').forEach(b => b.style.display = '');
-      });
-    }
+  const canvasArea = document.getElementById('canvas');
+  
+  // Ocultamos controles en la pantalla sin descolocar el DOM
+  const controls = canvasArea.querySelectorAll('.del-btn, .handle-h, .handle-v');
+  controls.forEach(c => c.style.visibility = 'hidden');
+
+  html2canvas(canvasArea, {
+    backgroundColor: '#ffffff',
+    scale: 2, // Mayor resolución/definición
+    useCORS: true,
+    logging: false,
+    scrollX: 0,
+    scrollY: 0,
+    windowWidth: canvasArea.scrollWidth,
+    windowHeight: canvasArea.scrollHeight
+  }).then(canvas => {
+    const link = document.createElement('a');
+    link.download = 'esquema-unifilar.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    
+    // Restauramos visibilidad
+    controls.forEach(c => c.style.visibility = 'visible');
+  });
+}
   </script>
 </body>
 </html>
