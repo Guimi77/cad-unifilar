@@ -13,6 +13,8 @@
     .header-btns { display: flex; gap: 8px; }
     .btn-hdr { background: #000; color: #fff; border: none; padding: 6px 12px; font-size: 0.75rem; font-weight: bold; cursor: pointer; }
     .btn-hdr:hover { background: #333; }
+    .btn-del { background: #c00; }
+    .btn-del:hover { background: #900; }
 
     .container { display: flex; flex: 1; height: calc(100vh - 45px); }
     
@@ -30,6 +32,7 @@
   <header>
     <h1>⚡ CAD UNIFILAR - REBT NATIVO</h1>
     <div class="header-btns">
+      <button class="btn-hdr btn-del" onclick="deleteSelected()">🗑️ ELIMINAR SELECCIÓN (SUPR)</button>
       <button class="btn-hdr" onclick="exportarPNG()">📥 EXPORTAR PNG</button>
       <button class="btn-hdr" onclick="editarCajetin()">⚙️ CAJETÍN</button>
     </div>
@@ -47,7 +50,6 @@
       <button class="btn-lib" onclick="addElement('DIFERENCIAL')">➕ DIFERENCIAL (ID)</button>
       <button class="btn-lib" onclick="addElement('PIA')">➕ MAGNETOTÉRMICO (PIA)</button>
       <button class="btn-lib" onclick="addElement('TIERRA')">➕ TOMA DE TIERRA</button>
-      <button class="btn-lib" onclick="addElement('CABLE')">➕ LÍNEA CABLE / CIRCUITO</button>
       <button class="btn-lib" onclick="addElement('TEXTO')">➕ NOTA / TEXTO LIBRE</button>
     </div>
 
@@ -88,11 +90,12 @@
         type: type,
         x: 100,
         y: 100,
-        w: 100, // Para líneas
-        h: 100, // Para líneas
+        w: 100, // Para líneas horizontales
+        h: 100, // Para líneas verticales
         text: getDefaultText(type)
       };
       elements.push(elem);
+      selectedElement = elem;
       draw();
     }
 
@@ -102,21 +105,43 @@
         case 'IGA': return 'IGA II POLOS 40A';
         case 'DIFERENCIAL': return 'I.DIF. II POLOS 40A 30mA';
         case 'PIA': return 'I.MAG. II POLOS 16A';
-        case 'CABLE': return '2x2.5+TTx2.5mm2Cu BAJO TUBO|C2-TOMAS';
         case 'TEXTO': return 'Nota técnica';
         default: return '';
       }
     }
 
+    function deleteSelected() {
+      if (!selectedElement) return;
+      elements = elements.filter(el => el !== selectedElement);
+      selectedElement = null;
+      draw();
+    }
+
+    // Tecla Supr para borrar elemento seleccionado
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        // Solo borrar si no se está editando un texto en un prompt
+        if (document.activeElement.tagName === 'BODY') {
+          deleteSelected();
+        }
+      }
+    });
+
     // --- RENDERIZADO TOTAL EN CANVAS ---
-    function draw() {
+    function draw(isExporting = false) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // 1. Dibujar rejilla de puntos
-      ctx.fillStyle = '#bbb';
-      for (let x = 0; x < canvas.width; x += GRID) {
-        for (let y = 0; y < canvas.height; y += GRID) {
-          ctx.fillRect(x, y, 1.5, 1.5);
+      // Fondo blanco obligatorio para evitar transparencias
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 1. Dibujar rejilla de puntos (solo si NO se está exportando)
+      if (!isExporting) {
+        ctx.fillStyle = '#bbb';
+        for (let x = 0; x < canvas.width; x += GRID) {
+          for (let y = 0; y < canvas.height; y += GRID) {
+            ctx.fillRect(x, y, 1.5, 1.5);
+          }
         }
       }
 
@@ -132,9 +157,11 @@
           ctx.moveTo(0, 0);
           ctx.lineTo(el.w, 0);
           ctx.stroke();
-          // Tirador de redimensionado
-          ctx.fillStyle = '#000';
-          ctx.fillRect(el.w - 4, -4, 8, 8);
+          // Tirador de redimensionado (solo en modo edición)
+          if (!isExporting) {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(el.w - 4, -4, 8, 8);
+          }
         } 
         else if (el.type === 'LINEA_V') {
           ctx.strokeStyle = '#000';
@@ -143,14 +170,13 @@
           ctx.moveTo(0, 0);
           ctx.lineTo(0, el.h);
           ctx.stroke();
-          ctx.fillStyle = '#000';
-          ctx.fillRect(-4, el.h - 4, 8, 8);
+          if (!isExporting) {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(-4, el.h - 4, 8, 8);
+          }
         } 
-        else if (el.type === 'ACOMETIDA' || el.type === 'IGA' || el.type === 'DIFERENCIAL' || el.type === 'PIA' || el.type === 'TIERRA') {
+        else if (['ACOMETIDA', 'IGA', 'DIFERENCIAL', 'PIA', 'TIERRA'].includes(el.type)) {
           drawSymbol(el.type, el.text);
-        }
-        else if (el.type === 'CABLE') {
-          drawCable(el.text);
         }
         else if (el.type === 'TEXTO') {
           ctx.font = 'bold 11px "Courier New"';
@@ -158,12 +184,12 @@
           ctx.fillText(el.text, 0, 0);
         }
 
-        // Si está seleccionado, dibujar caja de contorno
-        if (selectedElement === el) {
+        // Si está seleccionado y no estamos exportando, dibujar contorno de selección
+        if (!isExporting && selectedElement === el) {
           ctx.strokeStyle = '#00f';
           ctx.lineWidth = 1;
           ctx.setLineDash([2, 2]);
-          ctx.strokeRect(-10, -10, 30, 30);
+          ctx.strokeRect(-10, -10, 40, 45);
           ctx.setLineDash([]);
         }
 
@@ -189,7 +215,6 @@
         ctx.beginPath(); ctx.moveTo(0, 45); ctx.lineTo(0, 60); ctx.stroke();
       } 
       else if (type === 'IGA' || type === 'PIA' || type === 'DIFERENCIAL') {
-        // Simbología magnetotérmica/diferencial
         ctx.beginPath();
         ctx.moveTo(0, 15); ctx.lineTo(8, 30);
         ctx.moveTo(0, 45); ctx.lineTo(0, 60);
@@ -215,47 +240,16 @@
         ctx.stroke();
       }
 
-      // Texto lateral del símbolo
+      // Texto lateral del símbolo con fondo blanco para que las líneas no lo crucen
       if (text && type !== 'TIERRA') {
         ctx.font = 'bold 10px "Courier New"';
-        ctx.fillStyle = '#000';
-        ctx.fillText(text, 25, 25);
-      }
-    }
-
-    function drawCable(text) {
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 40); ctx.stroke();
-
-      let parts = text.split('|');
-      let cableTxt = parts[0] || '';
-      let circTxt = parts[1] || '';
-
-      // Texto vertical del cable
-      ctx.save();
-      ctx.translate(12, 8);
-      ctx.rotate(Math.PI / 2);
-      ctx.font = 'bold 9px "Courier New"';
-      ctx.fillStyle = '#000';
-      ctx.fillText(cableTxt, 0, 0);
-      ctx.restore();
-
-      // Etiqueta inferior del circuito
-      if (circTxt) {
-        ctx.font = 'bold 10px "Courier New"';
-        ctx.fillStyle = '#000';
-        let metrics = ctx.measureText(circTxt);
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(-metrics.width/2 - 4, 38, metrics.width + 8, 16);
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(-metrics.width/2 - 4, 38, metrics.width + 8, 16);
+        let metrics = ctx.measureText(text);
         
-        ctx.fillStyle = '#000';
-        ctx.textAlign = 'center';
-        ctx.fillText(circTxt, 0, 50);
-        ctx.textAlign = 'left';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(23, 16, metrics.width + 6, 16);
+        
+        ctx.fillStyle = '#000000';
+        ctx.fillText(text, 26, 28);
       }
     }
 
@@ -288,18 +282,16 @@
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
 
-      // Comprobar Cajetín
       if (mouseX >= cajetin.x && mouseX <= cajetin.x + cajetin.width &&
           mouseY >= cajetin.y && mouseY <= cajetin.y + cajetin.height) {
         return;
       }
 
-      // Comprobar elementos de atrás hacia adelante
       selectedElement = null;
       for (let i = elements.length - 1; i >= 0; i--) {
         let el = elements[i];
         
-        // Comprobación de tirador de redimensionado de líneas
+        // Tiradores de redimensionado
         if (el.type === 'LINEA_H' && Math.abs(mouseX - (el.x + el.w)) < 8 && Math.abs(mouseY - el.y) < 8) {
           selectedElement = el;
           isResizing = true;
@@ -311,7 +303,6 @@
           return;
         }
 
-        // Comprobación de selección general del elemento
         let hitBoxW = el.w || 30;
         let hitBoxH = el.h || 40;
         if (mouseX >= el.x - 10 && mouseX <= el.x + hitBoxW && mouseY >= el.y - 10 && mouseY <= el.y + hitBoxH) {
@@ -319,7 +310,6 @@
           isDragging = true;
           dragOffsetX = mouseX - el.x;
           dragOffsetY = mouseY - el.y;
-          // Mover al frente
           elements.splice(i, 1);
           elements.push(el);
           break;
@@ -354,7 +344,6 @@
       isResizing = false;
     });
 
-    // Doble clic para editar textos
     canvas.addEventListener('dblclick', (e) => {
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
@@ -370,7 +359,7 @@
         let hitBoxW = el.w || 30;
         let hitBoxH = el.h || 40;
         if (mouseX >= el.x - 10 && mouseX <= el.x + hitBoxW && mouseY >= el.y - 10 && mouseY <= el.y + hitBoxH) {
-          let val = prompt('Editar texto (usa | para separar cable y circuito si procede):', el.text);
+          let val = prompt('Editar texto:', el.text);
           if (val !== null) {
             el.text = val;
             draw();
@@ -387,26 +376,19 @@
       draw();
     }
 
-    // --- EXPORTACIÓN LIMPIA DIRECTA DESDE EL MOTOR ---
     function exportarPNG() {
-  let prevSelected = selectedElement;
-  selectedElement = null;
+      // Dibujar sin marcas de selección ni retícula
+      draw(true);
 
-  // Forzamos un renderizado limpio con fondo blanco opaco para la exportación
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  draw();
+      const link = document.createElement('a');
+      link.download = 'esquema-unifilar.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
 
-  const link = document.createElement('a');
-  link.download = 'esquema-unifilar.png';
-  link.href = canvas.toDataURL('image/png');
-  link.click();
+      // Restaurar vista de trabajo normal
+      draw(false);
+    }
 
-  selectedElement = prevSelected;
-  draw();
-}
-
-    // Inicializar
     resizeCanvas();
   </script>
 </body>
