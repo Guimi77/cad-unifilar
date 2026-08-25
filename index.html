@@ -389,19 +389,22 @@
 
     // --- EXPORTACIÓN LIMPIA DIRECTA DESDE EL MOTOR ---
     function exportarPNG() {
-      // Ocultar selección temporalmente para el renderizado final de exportación
-      let prevSelected = selectedElement;
-      selectedElement = null;
-      draw();
+  let prevSelected = selectedElement;
+  selectedElement = null;
 
-      const link = document.createElement('a');
-      link.download = 'esquema-unifilar.png';
-      link.href = canvas.toDataURL('image/png');
-      link.click();
+  // Forzamos un renderizado limpio con fondo blanco opaco para la exportación
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  draw();
 
-      selectedElement = prevSelected;
-      draw();
-    }
+  const link = document.createElement('a');
+  link.download = 'esquema-unifilar.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+
+  selectedElement = prevSelected;
+  draw();
+}
 
     // Inicializar
     resizeCanvas();
