@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CAD UNIFILAR REBT ACCURATE</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <title>CAD UNIFILAR REBT NATIVO</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Courier New', Courier, monospace; }
     body { display: flex; flex-direction: column; height: 100vh; background: #fff; color: #000; overflow: hidden; user-select: none; }
@@ -22,47 +21,14 @@
     .btn-lib { background: #fff; border: 1px solid #000; padding: 8px 8px; text-align: left; font-size: 0.7rem; font-weight: bold; cursor: pointer; }
     .btn-lib:hover { background: #f0f0f0; }
 
-    /* Canvas con puntos alineados en offset 0 */
-    .canvas-area { flex: 1; background: #ffffff; background-image: radial-gradient(#888 1.5px, transparent 1.5px); background-size: 20px 20px; background-position: -1px -1px; position: relative; overflow: hidden; }
-    
-    /* Cajetín */
-    .cajetin { position: absolute; top: 20px; right: 20px; border: 2px solid #000; background: #fff; width: 220px; font-size: 0.65rem; z-index: 5; cursor: move; }
-    .cajetin-head { border-bottom: 2px solid #000; text-align: center; font-weight: bold; padding: 4px; }
-    .cajetin-body { padding: 6px; }
-    .cajetin-val { font-weight: bold; cursor: pointer; }
-
-    /* Nodos Draggables con origen exacto */
-    .draggable-node { position: absolute; cursor: move; z-index: 2; }
-    .draggable-node:hover { outline: 1px dashed #aaa; }
-    
-    /* Contenedores y SVG */
-    .sym-box { position: relative; width: 0; height: 0; overflow: visible; }
-    .sym-svg { display: block; overflow: visible; position: absolute; top: 0; left: -20px; width: 40px; height: 60px; }
-    .sym-label { font-size: 0.7rem; font-weight: bold; white-space: nowrap; cursor: pointer; background: #fff; padding: 2px 4px; position: absolute; left: 25px; top: 20px; }
-    
-    /* Línea Horizontal */
-    .line-h-box { position: relative; width: 0; height: 0; }
-    .line-h-body { position: absolute; top: -1px; left: 0; height: 2px; background: #000; min-width: 20px; width: 100px; }
-    .handle-h { width: 8px; height: 8px; background: #000; cursor: ew-resize; position: absolute; top: -4px; z-index: 10; }
-
-    /* Línea Vertical */
-    .line-v-box { position: relative; width: 0; height: 0; }
-    .line-v-body { position: absolute; top: 0; left: -1px; width: 2px; background: #000; min-height: 20px; height: 100px; }
-    .handle-v { width: 8px; height: 8px; background: #000; cursor: ns-resize; position: absolute; left: -4px; z-index: 10; }
-
-    /* Cable Vertical */
-    .cable-box { position: relative; width: 0; height: 0; }
-    .cable-text { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 0.6rem; font-weight: bold; white-space: nowrap; background: #fff; padding: 2px; cursor: pointer; position: absolute; left: 6px; top: 10px; }
-    .circuit-label { border-top: 2px solid #000; font-size: 0.65rem; font-weight: bold; padding-top: 2px; text-align: center; background: #fff; cursor: pointer; width: 120px; position: absolute; left: -60px; top: 50px; }
-
-    .del-btn { position: absolute; top: -12px; left: -12px; background: red; color: white; border: none; border-radius: 50%; width: 16px; height: 16px; font-size: 10px; cursor: pointer; display: none; line-height: 16px; text-align: center; z-index: 20; }
-    .draggable-node:hover .del-btn { display: block; }
+    .canvas-container { flex: 1; position: relative; overflow: hidden; background: #fff; }
+    canvas { display: block; }
   </style>
 </head>
 <body>
 
   <header>
-    <h1>⚡ CAD UNIFILAR - REBT ACCURATE</h1>
+    <h1>⚡ CAD UNIFILAR - REBT NATIVO</h1>
     <div class="header-btns">
       <button class="btn-hdr" onclick="exportarPNG()">📥 EXPORTAR PNG</button>
       <button class="btn-hdr" onclick="editarCajetin()">⚙️ CAJETÍN</button>
@@ -72,218 +38,373 @@
   <div class="container">
     <div class="sidebar">
       <div class="sidebar-title">CONEXIONES</div>
-      <button class="btn-lib" onclick="spawn('LINEA_H')">➖ LÍNEA HORIZONTAL</button>
-      <button class="btn-lib" onclick="spawn('LINEA_V')">🏽 LÍNEA VERTICAL</button>
+      <button class="btn-lib" onclick="addElement('LINEA_H')">➖ LÍNEA HORIZONTAL</button>
+      <button class="btn-lib" onclick="addElement('LINEA_V')">🏽 LÍNEA VERTICAL</button>
 
       <div class="sidebar-title" style="margin-top:10px;">SÍMBOLOS NORMALIZADOS</div>
-      <button class="btn-lib" onclick="spawn('ACOMETIDA')">➕ ACOMETIDA / CONTADOR</button>
-      <button class="btn-lib" onclick="spawn('IGA')">➕ IGA / ICP (SECCIONADOR)</button>
-      <button class="btn-lib" onclick="spawn('DIFERENCIAL')">➕ DIFERENCIAL (ID)</button>
-      <button class="btn-lib" onclick="spawn('PIA')">➕ MAGNETOTÉRMICO (PIA)</button>
-      <button class="btn-lib" onclick="spawn('CABLE')">➕ LÍNEA CABLE / CIRCUITO</button>
-      <button class="btn-lib" onclick="spawn('TIERRA')">➕ TOMA DE TIERRA</button>
-      <button class="btn-lib" onclick="spawn('TEXTO')">➕ NOTA / TEXTO LIBRE</button>
+      <button class="btn-lib" onclick="addElement('ACOMETIDA')">➕ ACOMETIDA / CONTADOR</button>
+      <button class="btn-lib" onclick="addElement('IGA')">➕ IGA / ICP (SECCIONADOR)</button>
+      <button class="btn-lib" onclick="addElement('DIFERENCIAL')">➕ DIFERENCIAL (ID)</button>
+      <button class="btn-lib" onclick="addElement('PIA')">➕ MAGNETOTÉRMICO (PIA)</button>
+      <button class="btn-lib" onclick="addElement('TIERRA')">➕ TOMA DE TIERRA</button>
+      <button class="btn-lib" onclick="addElement('CABLE')">➕ LÍNEA CABLE / CIRCUITO</button>
+      <button class="btn-lib" onclick="addElement('TEXTO')">➕ NOTA / TEXTO LIBRE</button>
     </div>
 
-    <div class="canvas-area" id="canvas">
-      <div class="cajetin" id="cajetin">
-        <div class="cajetin-head">CUADRO ELÉCTRICO GENERAL</div>
-        <div class="cajetin-body">
-          <div>TÍTULO: <span class="cajetin-val" id="cj-titulo" ondblclick="editarCajetin()">Cuadro Principal</span></div>
-          <div>DIRECCIÓN: <span class="cajetin-val" id="cj-dir" ondblclick="editarCajetin()">c/ Sa Pansa 24</span></div>
-        </div>
-      </div>
+    <div class="canvas-container" id="container">
+      <canvas id="cadCanvas"></canvas>
     </div>
   </div>
 
   <script>
-    let activeNode = null;
-    let startX = 0, startY = 0;
-    let initialLeft = 0, initialTop = 0;
-    const GRID_SIZE = 20;
+    const canvas = document.getElementById('cadCanvas');
+    const ctx = canvas.getContext('2d');
+    const container = document.getElementById('container');
 
-    function makeDraggable(el) {
-      el.addEventListener('mousedown', (e) => {
-        if (e.target.classList.contains('del-btn') || 
-            e.target.classList.contains('handle-h') || 
-            e.target.classList.contains('handle-v')) return;
-            
-        activeNode = el;
-        startX = e.clientX;
-        startY = e.clientY;
-        initialLeft = parseInt(el.style.left) || 0;
-        initialTop = parseInt(el.style.top) || 0;
-
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
-      });
-    }
-
-    function onMouseMove(e) {
-      if (!activeNode) return;
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-
-      let rawX = initialLeft + dx;
-      let rawY = initialTop + dy;
-
-      let snapX = Math.round(rawX / GRID_SIZE) * GRID_SIZE;
-      let snapY = Math.round(rawY / GRID_SIZE) * GRID_SIZE;
-
-      activeNode.style.left = snapX + 'px';
-      activeNode.style.top = snapY + 'px';
-    }
-
-    function onMouseUp() {
-      activeNode = null;
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    }
-
-    makeDraggable(document.getElementById('cajetin'));
-
-    // Símbolos vectoriales con origen (0,0) exacto en la entrada del cable
-    const SVGS = {
-      ACOMETIDA: `<svg class="sym-svg" viewBox="0 0 40 60"><path d="M20,0 V15 M10,15 H30 V45 H10 Z M20,45 V60" stroke="#000" stroke-width="2" fill="none"/><text x="12" y="34" font-size="9" font-weight="bold">kWh</text></svg>`,
-      IGA: `<svg class="sym-svg" viewBox="0 0 40 60"><path d="M20,0 V23 M20,37 V60 M20,37 L28,23" stroke="#000" stroke-width="2" fill="none"/><circle cx="20" cy="23" r="2" fill="#000"/><circle cx="20" cy="37" r="2" fill="#000"/><path d="M12,28 H24" stroke="#000" stroke-width="1.5" stroke-dasharray="2,2"/></svg>`,
-      DIFERENCIAL: `<svg class="sym-svg" viewBox="0 0 40 60"><path d="M20,0 V20 M20,40 V60 M20,40 L28,23" stroke="#000" stroke-width="2" fill="none"/><circle cx="20" cy="23" r="2" fill="#000"/><circle cx="20" cy="40" r="2" fill="#000"/><rect x="7" y="21" width="12" height="20" rx="2" stroke="#000" stroke-width="1.5" fill="none"/><text x="9" y="34" font-size="7" font-weight="bold">T</text></svg>`,
-      PIA: `<svg class="sym-svg" viewBox="0 0 40 60"><path d="M20,0 V23 M20,37 V60 M20,37 L28,23" stroke="#000" stroke-width="2" fill="none"/><circle cx="20" cy="23" r="2" fill="#000"/><circle cx="20" cy="37" r="2" fill="#000"/><rect x="8" y="26" width="8" height="8" stroke="#000" stroke-width="1.5" fill="none"/></svg>`,
-      TIERRA: `<svg class="sym-svg" viewBox="0 0 40 40" style="height:40px;"><path d="M20,0 V20 M5,20 H35 M10,26 H30 M15,32 H25" stroke="#000" stroke-width="2" fill="none"/></svg>`
+    const GRID = 20;
+    let elements = [];
+    let cajetin = {
+      x: 0, y: 20, width: 220, height: 60,
+      titulo: 'Cuadro Principal',
+      dir: 'c/ Sa Pansa 24'
     };
 
-    function spawn(tipo) {
-      const canvas = document.getElementById('canvas');
-      const node = document.createElement('div');
-      node.className = 'draggable-node';
-      node.style.left = '100px';
-      node.style.top = '100px';
+    let selectedElement = null;
+    let isDragging = false;
+    let dragOffsetX = 0, dragOffsetY = 0;
+    let isResizing = false;
 
-      let inner = `<button class="del-btn" onclick="this.parentElement.remove()">✕</button>`;
+    function resizeCanvas() {
+      canvas.width = container.clientWidth;
+      canvas.height = container.clientHeight;
+      cajetin.x = canvas.width - cajetin.width - 20;
+      draw();
+    }
+    window.addEventListener('resize', resizeCanvas);
 
-      if (tipo === 'LINEA_H') {
-        inner += `
-          <div class="line-h-box">
-            <div class="line-h-body"></div>
-            <div class="handle-h" style="left:100px;"></div>
-          </div>`;
-      } else if (tipo === 'LINEA_V') {
-        inner += `
-          <div class="line-v-box">
-            <div class="line-v-body"></div>
-            <div class="handle-v" style="top:100px;"></div>
-          </div>`;
-      } else if (tipo === 'ACOMETIDA') {
-        inner += `<div class="sym-box">${SVGS.ACOMETIDA}<div class="sym-label" ondblclick="editTxt(this)">CGP / MEDIDA 230V</div></div>`;
-      } else if (tipo === 'IGA') {
-        inner += `<div class="sym-box">${SVGS.IGA}<div class="sym-label" ondblclick="editTxt(this)">IGA II POLOS 40A</div></div>`;
-      } else if (tipo === 'DIFERENCIAL') {
-        inner += `<div class="sym-box">${SVGS.DIFERENCIAL}<div class="sym-label" ondblclick="editTxt(this)">I.DIF. II POLOS 40A 30mA</div></div>`;
-      } else if (tipo === 'PIA') {
-        inner += `<div class="sym-box">${SVGS.PIA}<div class="sym-label" ondblclick="editTxt(this)">I.MAG. II POLOS 16A</div></div>`;
-      } else if (tipo === 'TIERRA') {
-        inner += `<div class="sym-box">${SVGS.TIERRA}</div>`;
-      } else if (tipo === 'CABLE') {
-        inner += `
-          <div class="cable-box">
-            <div class="line-v-body" style="height:40px;"></div>
-            <div class="cable-text" ondblclick="editTxt(this)">2x2.5+TTx2.5mm2Cu BAJO TUBO=20mm</div>
-            <div class="circuit-label" ondblclick="editTxt(this)">C2-TOMAS DE CORRIENTE</div>
-          </div>
-        `;
-      } else if (tipo === 'TEXTO') {
-        inner += `<div class="sym-label" style="position:static;" ondblclick="editTxt(this)">Texto / Nota técnica</div>`;
+    function addElement(type) {
+      let elem = {
+        id: Date.now(),
+        type: type,
+        x: 100,
+        y: 100,
+        w: 100, // Para líneas
+        h: 100, // Para líneas
+        text: getDefaultText(type)
+      };
+      elements.push(elem);
+      draw();
+    }
+
+    function getDefaultText(type) {
+      switch(type) {
+        case 'ACOMETIDA': return 'CGP / MEDIDA 230V';
+        case 'IGA': return 'IGA II POLOS 40A';
+        case 'DIFERENCIAL': return 'I.DIF. II POLOS 40A 30mA';
+        case 'PIA': return 'I.MAG. II POLOS 16A';
+        case 'CABLE': return '2x2.5+TTx2.5mm2Cu BAJO TUBO|C2-TOMAS';
+        case 'TEXTO': return 'Nota técnica';
+        default: return '';
+      }
+    }
+
+    // --- RENDERIZADO TOTAL EN CANVAS ---
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 1. Dibujar rejilla de puntos
+      ctx.fillStyle = '#bbb';
+      for (let x = 0; x < canvas.width; x += GRID) {
+        for (let y = 0; y < canvas.height; y += GRID) {
+          ctx.fillRect(x, y, 1.5, 1.5);
+        }
       }
 
-      node.innerHTML = inner;
-      canvas.appendChild(node);
-      makeDraggable(node);
+      // 2. Dibujar elementos
+      elements.forEach(el => {
+        ctx.save();
+        ctx.translate(el.x, el.y);
 
-      if (tipo === 'LINEA_H') initResizeH(node);
-      if (tipo === 'LINEA_V') initResizeV(node);
-    }
+        if (el.type === 'LINEA_H') {
+          ctx.strokeStyle = '#000';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(el.w, 0);
+          ctx.stroke();
+          // Tirador de redimensionado
+          ctx.fillStyle = '#000';
+          ctx.fillRect(el.w - 4, -4, 8, 8);
+        } 
+        else if (el.type === 'LINEA_V') {
+          ctx.strokeStyle = '#000';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(0, el.h);
+          ctx.stroke();
+          ctx.fillStyle = '#000';
+          ctx.fillRect(-4, el.h - 4, 8, 8);
+        } 
+        else if (el.type === 'ACOMETIDA' || el.type === 'IGA' || el.type === 'DIFERENCIAL' || el.type === 'PIA' || el.type === 'TIERRA') {
+          drawSymbol(el.type, el.text);
+        }
+        else if (el.type === 'CABLE') {
+          drawCable(el.text);
+        }
+        else if (el.type === 'TEXTO') {
+          ctx.font = 'bold 11px "Courier New"';
+          ctx.fillStyle = '#000';
+          ctx.fillText(el.text, 0, 0);
+        }
 
-    function initResizeH(node) {
-      const handle = node.querySelector('.handle-h');
-      const line = node.querySelector('.line-h-body');
-      handle.addEventListener('mousedown', (e) => {
-        e.stopPropagation();
-        const startXPos = e.clientX;
-        const startW = line.offsetWidth;
-        function onMove(eMove) {
-          let diff = eMove.clientX - startXPos;
-          let newWidth = Math.max(20, Math.round((startW + diff) / GRID_SIZE) * GRID_SIZE);
-          line.style.width = newWidth + 'px';
-          handle.style.left = newWidth + 'px';
+        // Si está seleccionado, dibujar caja de contorno
+        if (selectedElement === el) {
+          ctx.strokeStyle = '#00f';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([2, 2]);
+          ctx.strokeRect(-10, -10, 30, 30);
+          ctx.setLineDash([]);
         }
-        function onStop() {
-          document.removeEventListener('mousemove', onMove);
-          document.removeEventListener('mouseup', onStop);
-        }
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onStop);
+
+        ctx.restore();
       });
+
+      // 3. Dibujar Cajetín
+      drawCajetin();
     }
 
-    function initResizeV(node) {
-      const handle = node.querySelector('.handle-v');
-      const line = node.querySelector('.line-v-body');
-      handle.addEventListener('mousedown', (e) => {
-        e.stopPropagation();
-        const startYPos = e.clientY;
-        const startH = line.offsetHeight;
-        function onMove(eMove) {
-          let diff = eMove.clientY - startYPos;
-          let newHeight = Math.max(20, Math.round((startH + diff) / GRID_SIZE) * GRID_SIZE);
-          line.style.height = newHeight + 'px';
-          handle.style.top = newHeight + 'px';
+    function drawSymbol(type, text) {
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 2;
+      ctx.fillStyle = '#000';
+
+      // Línea de entrada superior
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 15); ctx.stroke();
+
+      if (type === 'ACOMETIDA') {
+        ctx.strokeRect(-15, 15, 30, 30);
+        ctx.font = 'bold 9px "Courier New"';
+        ctx.fillText('kWh', -11, 33);
+        ctx.beginPath(); ctx.moveTo(0, 45); ctx.lineTo(0, 60); ctx.stroke();
+      } 
+      else if (type === 'IGA' || type === 'PIA' || type === 'DIFERENCIAL') {
+        // Simbología magnetotérmica/diferencial
+        ctx.beginPath();
+        ctx.moveTo(0, 15); ctx.lineTo(8, 30);
+        ctx.moveTo(0, 45); ctx.lineTo(0, 60);
+        ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, 15, 2, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(0, 45, 2, 0, Math.PI*2); ctx.fill();
+        
+        if (type === 'PIA') {
+          ctx.strokeRect(-6, 23, 12, 12);
+        } else if (type === 'DIFERENCIAL') {
+          ctx.strokeRect(-10, 20, 20, 20);
+          ctx.font = 'bold 8px "Courier New"';
+          ctx.fillText('T', -3, 34);
         }
-        function onStop() {
-          document.removeEventListener('mousemove', onMove);
-          document.removeEventListener('mouseup', onStop);
+        ctx.beginPath(); ctx.moveTo(0, 45); ctx.lineTo(0, 60); ctx.stroke();
+      }
+      else if (type === 'TIERRA') {
+        ctx.beginPath();
+        ctx.moveTo(0, 0); ctx.lineTo(0, 15);
+        ctx.moveTo(-15, 15); ctx.lineTo(15, 15);
+        ctx.moveTo(-10, 20); ctx.lineTo(10, 20);
+        ctx.moveTo(-5, 25); ctx.lineTo(5, 25);
+        ctx.stroke();
+      }
+
+      // Texto lateral del símbolo
+      if (text && type !== 'TIERRA') {
+        ctx.font = 'bold 10px "Courier New"';
+        ctx.fillStyle = '#000';
+        ctx.fillText(text, 25, 25);
+      }
+    }
+
+    function drawCable(text) {
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 40); ctx.stroke();
+
+      let parts = text.split('|');
+      let cableTxt = parts[0] || '';
+      let circTxt = parts[1] || '';
+
+      // Texto vertical del cable
+      ctx.save();
+      ctx.translate(12, 8);
+      ctx.rotate(Math.PI / 2);
+      ctx.font = 'bold 9px "Courier New"';
+      ctx.fillStyle = '#000';
+      ctx.fillText(cableTxt, 0, 0);
+      ctx.restore();
+
+      // Etiqueta inferior del circuito
+      if (circTxt) {
+        ctx.font = 'bold 10px "Courier New"';
+        ctx.fillStyle = '#000';
+        let metrics = ctx.measureText(circTxt);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(-metrics.width/2 - 4, 38, metrics.width + 8, 16);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-metrics.width/2 - 4, 38, metrics.width + 8, 16);
+        
+        ctx.fillStyle = '#000';
+        ctx.textAlign = 'center';
+        ctx.fillText(circTxt, 0, 50);
+        ctx.textAlign = 'left';
+      }
+    }
+
+    function drawCajetin() {
+      ctx.fillStyle = '#fff';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 2;
+      ctx.fillRect(cajetin.x, cajetin.y, cajetin.width, cajetin.height);
+      ctx.strokeRect(cajetin.x, cajetin.y, cajetin.width, cajetin.height);
+
+      ctx.fillStyle = '#000';
+      ctx.font = 'bold 9px "Courier New"';
+      ctx.textAlign = 'center';
+      ctx.fillText('CUADRO ELÉCTRICO GENERAL', cajetin.x + cajetin.width/2, cajetin.y + 14);
+
+      ctx.beginPath();
+      ctx.moveTo(cajetin.x, cajetin.y + 22);
+      ctx.lineTo(cajetin.x + cajetin.width, cajetin.y + 22);
+      ctx.stroke();
+
+      ctx.textAlign = 'left';
+      ctx.font = '8px "Courier New"';
+      ctx.fillText('TÍTULO: ' + cajetin.titulo, cajetin.x + 6, cajetin.y + 36);
+      ctx.fillText('DIRECCIÓN: ' + cajetin.dir, cajetin.x + 6, cajetin.y + 48);
+    }
+
+    // --- INTERACCIÓN DE RATÓN Y SNAP CAD ---
+    canvas.addEventListener('mousedown', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      // Comprobar Cajetín
+      if (mouseX >= cajetin.x && mouseX <= cajetin.x + cajetin.width &&
+          mouseY >= cajetin.y && mouseY <= cajetin.y + cajetin.height) {
+        return;
+      }
+
+      // Comprobar elementos de atrás hacia adelante
+      selectedElement = null;
+      for (let i = elements.length - 1; i >= 0; i--) {
+        let el = elements[i];
+        
+        // Comprobación de tirador de redimensionado de líneas
+        if (el.type === 'LINEA_H' && Math.abs(mouseX - (el.x + el.w)) < 8 && Math.abs(mouseY - el.y) < 8) {
+          selectedElement = el;
+          isResizing = true;
+          return;
         }
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onStop);
+        if (el.type === 'LINEA_V' && Math.abs(mouseX - el.x) < 8 && Math.abs(mouseY - (el.y + el.h)) < 8) {
+          selectedElement = el;
+          isResizing = true;
+          return;
+        }
+
+        // Comprobación de selección general del elemento
+        let hitBoxW = el.w || 30;
+        let hitBoxH = el.h || 40;
+        if (mouseX >= el.x - 10 && mouseX <= el.x + hitBoxW && mouseY >= el.y - 10 && mouseY <= el.y + hitBoxH) {
+          selectedElement = el;
+          isDragging = true;
+          dragOffsetX = mouseX - el.x;
+          dragOffsetY = mouseY - el.y;
+          // Mover al frente
+          elements.splice(i, 1);
+          elements.push(el);
+          break;
+        }
+      }
+      draw();
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      if (!selectedElement) return;
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      if (isResizing) {
+        if (selectedElement.type === 'LINEA_H') {
+          selectedElement.w = Math.max(20, Math.round((mouseX - selectedElement.x) / GRID) * GRID);
+        } else if (selectedElement.type === 'LINEA_V') {
+          selectedElement.h = Math.max(20, Math.round((mouseY - selectedElement.y) / GRID) * GRID);
+        }
+      } else if (isDragging) {
+        let rawX = mouseX - dragOffsetX;
+        let rawY = mouseY - dragOffsetY;
+        selectedElement.x = Math.round(rawX / GRID) * GRID;
+        selectedElement.y = Math.round(rawY / GRID) * GRID;
+      }
+      draw();
+    });
+
+    window.addEventListener('mouseup', () => {
+      isDragging = false;
+      isResizing = false;
+    });
+
+    // Doble clic para editar textos
+    canvas.addEventListener('dblclick', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      if (mouseX >= cajetin.x && mouseX <= cajetin.x + cajetin.width &&
+          mouseY >= cajetin.y && mouseY <= cajetin.y + cajetin.height) {
+        editarCajetin();
+        return;
+      }
+
+      elements.forEach(el => {
+        let hitBoxW = el.w || 30;
+        let hitBoxH = el.h || 40;
+        if (mouseX >= el.x - 10 && mouseX <= el.x + hitBoxW && mouseY >= el.y - 10 && mouseY <= el.y + hitBoxH) {
+          let val = prompt('Editar texto (usa | para separar cable y circuito si procede):', el.text);
+          if (val !== null) {
+            el.text = val;
+            draw();
+          }
+        }
       });
-    }
-
-    function editTxt(el) {
-      const val = prompt('Editar texto:', el.innerText.replace(/\n/g, ' '));
-      if (val !== null && val.trim() !== '') el.innerText = val;
-    }
+    });
 
     function editarCajetin() {
-      const t = prompt('Título del Cuadro:', document.getElementById('cj-titulo').innerText);
-      if (t !== null) document.getElementById('cj-titulo').innerText = t;
-      const d = prompt('Dirección:', document.getElementById('cj-dir').innerText);
-      if (d !== null) document.getElementById('cj-dir').innerText = d;
+      let t = prompt('Título del Cuadro:', cajetin.titulo);
+      if (t !== null) cajetin.titulo = t;
+      let d = prompt('Dirección:', cajetin.dir);
+      if (d !== null) cajetin.dir = d;
+      draw();
     }
 
+    // --- EXPORTACIÓN LIMPIA DIRECTA DESDE EL MOTOR ---
     function exportarPNG() {
-  const canvasArea = document.getElementById('canvas');
-  
-  // Ocultamos controles en la pantalla sin descolocar el DOM
-  const controls = canvasArea.querySelectorAll('.del-btn, .handle-h, .handle-v');
-  controls.forEach(c => c.style.visibility = 'hidden');
+      // Ocultar selección temporalmente para el renderizado final de exportación
+      let prevSelected = selectedElement;
+      selectedElement = null;
+      draw();
 
-  html2canvas(canvasArea, {
-    backgroundColor: '#ffffff',
-    scale: 2, // Mayor resolución/definición
-    useCORS: true,
-    logging: false,
-    scrollX: 0,
-    scrollY: 0,
-    windowWidth: canvasArea.scrollWidth,
-    windowHeight: canvasArea.scrollHeight
-  }).then(canvas => {
-    const link = document.createElement('a');
-    link.download = 'esquema-unifilar.png';
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-    
-    // Restauramos visibilidad
-    controls.forEach(c => c.style.visibility = 'visible');
-  });
-}
+      const link = document.createElement('a');
+      link.download = 'esquema-unifilar.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+
+      selectedElement = prevSelected;
+      draw();
+    }
+
+    // Inicializar
+    resizeCanvas();
   </script>
 </body>
 </html>
