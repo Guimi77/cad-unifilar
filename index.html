@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CAD UNIFILAR LIBRE</title>
+  <title>CAD UNIFILAR SIMBOLOGÍA REBT</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Courier New', Courier, monospace; }
@@ -31,25 +31,29 @@
     .cajetin-body { padding: 6px; }
     .cajetin-val { font-weight: bold; cursor: pointer; }
 
-    /* Elementos Arrastrables */
-    .draggable-node { position: absolute; cursor: move; display: flex; flex-direction: column; align-items: center; background: transparent; }
+    /* Nodo Draggable */
+    .draggable-node { position: absolute; cursor: move; display: flex; align-items: center; background: transparent; padding: 2px; }
     .draggable-node:hover { outline: 1px dashed #000; }
     
-    .symbol-block { border: 1px solid #000; background: #fff; padding: 4px 8px; font-size: 0.7rem; font-weight: bold; text-align: center; min-width: 80px; }
-    .sym-switch { position: relative; width: 20px; height: 25px; border-left: 2px solid #000; margin: 2px 0; }
-    .sym-switch::after { content: ''; position: absolute; top: 8px; left: -2px; width: 10px; height: 2px; background: #000; transform: rotate(-45deg); transform-origin: left; }
-    
-    .cable-text { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 0.6rem; margin: 5px 0; font-weight: bold; white-space: nowrap; background: #fff; padding: 2px; }
-    .circuit-label { border-top: 2px solid #000; font-size: 0.65rem; font-weight: bold; padding-top: 2px; text-align: center; background: #fff; width: 100%; }
-    
-    .del-btn { position: absolute; top: -8px; right: -8px; background: red; color: white; border: none; border-radius: 50%; width: 16px; height: 16px; font-size: 10px; cursor: pointer; display: none; line-height: 16px; text-align: center; }
+    /* Contenedor de símbolo y texto a la derecha */
+    .sym-container { display: flex; align-items: center; gap: 8px; }
+    .sym-svg { width: 40px; height: 50px; display: flex; justify-content: center; align-items: center; }
+    .sym-label { font-size: 0.7rem; font-weight: bold; white-space: nowrap; cursor: pointer; background: #fff; padding: 2px 4px; border: 1px transparent dashed; }
+    .sym-label:hover { border-color: #999; }
+
+    /* Texto vertical para cables */
+    .cable-node { display: flex; flex-direction: column; align-items: center; }
+    .cable-text { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 0.6rem; font-weight: bold; white-space: nowrap; background: #fff; padding: 2px; cursor: pointer; }
+    .circuit-label { border-top: 2px solid #000; font-size: 0.65rem; font-weight: bold; padding-top: 2px; text-align: center; background: #fff; cursor: pointer; }
+
+    .del-btn { position: absolute; top: -8px; right: -8px; background: red; color: white; border: none; border-radius: 50%; width: 16px; height: 16px; font-size: 10px; cursor: pointer; display: none; line-height: 16px; text-align: center; z-index: 20; }
     .draggable-node:hover .del-btn { display: block; }
   </style>
 </head>
 <body>
 
   <header>
-    <h1>⚡ CAD UNIFILAR - LIBRE</h1>
+    <h1>⚡ CAD UNIFILAR - SIMBOLOGÍA REBT</h1>
     <div class="header-btns">
       <button class="btn-hdr" onclick="exportarPNG()">📥 EXPORTAR PNG</button>
       <button class="btn-hdr" onclick="editarCajetin()">⚙️ CAJETÍN</button>
@@ -58,13 +62,14 @@
 
   <div class="container">
     <div class="sidebar">
-      <div class="sidebar-title">LIBRERÍA DE ELEMENTOS</div>
-      <div class="sidebar-sub">Haz clic para añadir y arrastra por el lienzo</div>
-      <button class="btn-lib" onclick="spawn('ACOMETIDA')">➕ ACOMETIDA / ICP</button>
-      <button class="btn-lib" onclick="spawn('IGA')">➕ INTERRUPTOR GENERAL (IGA)</button>
+      <div class="sidebar-title">SÍMBOLOS NORMALIZADOS</div>
+      <div class="sidebar-sub">Texto anclado a la derecha del símbolo</div>
+      <button class="btn-lib" onclick="spawn('ACOMETIDA')">➕ ACOMETIDA / CONTADOR</button>
+      <button class="btn-lib" onclick="spawn('IGA')">➕ IGA / ICP (SECCIONADOR)</button>
       <button class="btn-lib" onclick="spawn('DIFERENCIAL')">➕ DIFERENCIAL (ID)</button>
       <button class="btn-lib" onclick="spawn('PIA')">➕ MAGNETOTÉRMICO (PIA)</button>
-      <button class="btn-lib" onclick="spawn('TEXTO')">➕ TEXTO / LÍNEA DE CABLE</button>
+      <button class="btn-lib" onclick="spawn('CABLE')">➕ LÍNEA CABLE / CIRCUITO</button>
+      <button class="btn-lib" onclick="spawn('TEXTO')">➕ NOTA / TEXTO LIBRE</button>
     </div>
 
     <div class="canvas-area" id="canvas">
@@ -101,7 +106,6 @@
       let x = e.clientX - rect.left - offsetX;
       let y = e.clientY - rect.top - offsetY;
       
-      // Ajuste básico a rejilla de 10px
       x = Math.round(x / 10) * 10;
       y = Math.round(y / 10) * 10;
 
@@ -115,8 +119,15 @@
       document.removeEventListener('mouseup', onMouseUp);
     }
 
-    // Inicializar arrastre del cajetín
     makeDraggable(document.getElementById('cajetin'));
+
+    // Símbolos en formato SVG vectorial normalizado
+    const SVGS = {
+      ACOMETIDA: `<svg class="sym-svg" viewBox="0 0 40 50"><path d="M20,0 V15 M10,15 H30 V35 H10 Z M20,35 V50" stroke="#000" stroke-width="2" fill="none"/><text x="14" y="28" font-size="10" font-weight="bold">kWh</text></svg>`,
+      IGA: `<svg class="sym-svg" viewBox="0 0 40 50"><path d="M20,0 V18 M20,32 V50 M20,32 L28,18" stroke="#000" stroke-width="2" fill="none"/><circle cx="20" cy="18" r="2" fill="#000"/><circle cx="20" cy="32" r="2" fill="#000"/><path d="M12,22 H24" stroke="#000" stroke-width="1.5" stroke-dasharray="2,2"/></svg>`,
+      DIFERENCIAL: `<svg class="sym-svg" viewBox="0 0 40 50"><path d="M20,0 V15 M20,35 V50 M20,35 L28,20" stroke="#000" stroke-width="2" fill="none"/><circle cx="20" cy="20" r="2" fill="#000"/><circle cx="20" cy="35" r="2" fill="#000"/><rect x="8" y="16" width="12" height="18" rx="2" stroke="#000" stroke-width="1.5" fill="none"/><text x="10" y="28" font-size="7" font-weight="bold">T</text></svg>`,
+      PIA: `<svg class="sym-svg" viewBox="0 0 40 50"><path d="M20,0 V18 M20,32 V50 M20,32 L28,18" stroke="#000" stroke-width="2" fill="none"/><circle cx="20" cy="18" r="2" fill="#000"/><circle cx="20" cy="32" r="2" fill="#000"/><rect x="8" y="21" width="8" height="8" stroke="#000" stroke-width="1.5" fill="none"/></svg>`
+    };
 
     function spawn(tipo) {
       const canvas = document.getElementById('canvas');
@@ -128,31 +139,22 @@
       let inner = `<button class="del-btn" onclick="this.parentElement.remove()">✕</button>`;
 
       if (tipo === 'ACOMETIDA') {
-        inner += `
-          <div class="symbol-block" onclick="editTxt(this)">ACOMETIDA 230V</div>
-          <div style="width:2px; height:15px; background:#000;"></div>
-          <div class="symbol-block" onclick="editTxt(this)">ICP 40A</div>
-        `;
+        inner += `<div class="sym-container">${SVGS.ACOMETIDA}<div class="sym-label" onclick="editTxt(this)">CGP / MEDIDA 230V</div></div>`;
       } else if (tipo === 'IGA') {
-        inner += `
-          <div class="sym-switch"></div>
-          <div class="symbol-block" onclick="editTxt(this)">IGA II POLOS<br>40A</div>
-        `;
+        inner += `<div class="sym-container">${SVGS.IGA}<div class="sym-label" onclick="editTxt(this)">IGA II POLOS 40A</div></div>`;
       } else if (tipo === 'DIFERENCIAL') {
-        inner += `
-          <div class="symbol-block" onclick="editTxt(this)">I.DIF. II POLOS<br>40A 30mA</div>
-        `;
+        inner += `<div class="sym-container">${SVGS.DIFERENCIAL}<div class="sym-label" onclick="editTxt(this)">I.DIF. II POLOS 40A 30mA</div></div>`;
       } else if (tipo === 'PIA') {
+        inner += `<div class="sym-container">${SVGS.PIA}<div class="sym-label" onclick="editTxt(this)">I.MAG. II POLOS 16A</div></div>`;
+      } else if (tipo === 'CABLE') {
         inner += `
-          <div class="sym-switch"></div>
-          <div class="symbol-block" onclick="editTxt(this)">PIA 16A</div>
-          <div class="cable-text" onclick="editTxt(this)">2x2.5mm2 Cu - TUBO 20mm</div>
-          <div class="circuit-label" onclick="editTxt(this)">C2-TOMAS</div>
+          <div class="cable-node">
+            <div class="cable-text" onclick="editTxt(this)">2x2.5+TTx2.5mm2Cu BAJO TUBO=20mm</div>
+            <div class="circuit-label" onclick="editTxt(this)">C2-TOMAS DE CORRIENTE</div>
+          </div>
         `;
       } else if (tipo === 'TEXTO') {
-        inner += `
-          <div class="symbol-block" onclick="editTxt(this)">Texto / Anotación</div>
-        `;
+        inner += `<div class="sym-label" onclick="editTxt(this)">Texto / Nota técnica</div>`;
       }
 
       node.innerHTML = inner;
@@ -161,7 +163,7 @@
     }
 
     function editTxt(el) {
-      const val = prompt('Editar texto/parámetro CAD:', el.innerText.replace(/\n/g, ' '));
+      const val = prompt('Editar texto del elemento:', el.innerText.replace(/\n/g, ' '));
       if (val !== null && val.trim() !== '') el.innerText = val;
     }
 
@@ -173,11 +175,10 @@
     }
 
     function exportarPNG() {
-      // Ocultar botones de borrar temporalmente para la foto
       document.querySelectorAll('.del-btn').forEach(b => b.style.display = 'none');
       html2canvas(document.getElementById('canvas'), { backgroundColor: '#ffffff' }).then(canvas => {
         const link = document.createElement('a');
-        link.download = 'esquema-unifilar-libre.png';
+        link.download = 'esquema-unifilar-cad.png';
         link.href = canvas.toDataURL('image/png');
         link.click();
         document.querySelectorAll('.del-btn').forEach(b => b.style.display = '');
