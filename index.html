@@ -23,7 +23,7 @@
     .btn-lib:hover { background: #f0f0f0; }
 
     /* Canvas con puntos alineados en offset 0 */
-    .canvas-area { flex: 1; background: #ffffff; background-image: radial-gradient(#aaa 1.5px, transparent 1.5px); background-size: 20px 20px; background-position: 0 0; position: relative; overflow: hidden; }
+    .canvas-area { flex: 1; background: #ffffff; background-image: radial-gradient(#888 1.5px, transparent 1.5px); background-size: 20px 20px; background-position: -1px -1px; position: relative; overflow: hidden; }
     
     /* Cajetín */
     .cajetin { position: absolute; top: 20px; right: 20px; border: 2px solid #000; background: #fff; width: 220px; font-size: 0.65rem; z-index: 5; cursor: move; }
@@ -31,31 +31,31 @@
     .cajetin-body { padding: 6px; }
     .cajetin-val { font-weight: bold; cursor: pointer; }
 
-    /* Nodos Draggables */
-    .draggable-node { position: absolute; cursor: move; display: flex; align-items: flex-start; background: transparent; }
-    .draggable-node:hover { outline: 1px dashed #ccc; }
+    /* Nodos Draggables con origen exacto */
+    .draggable-node { position: absolute; cursor: move; z-index: 2; }
+    .draggable-node:hover { outline: 1px dashed #aaa; }
     
-    /* Símbolos y etiquetas */
-    .sym-container { display: flex; align-items: center; width: 40px; height: 60px; position: relative; justify-content: center; }
-    .sym-svg { width: 40px; height: 60px; display: block; overflow: visible; }
-    .sym-label { font-size: 0.7rem; font-weight: bold; white-space: nowrap; cursor: pointer; background: #fff; padding: 2px 6px; position: absolute; left: 45px; top: 20px; }
+    /* Contenedores y SVG */
+    .sym-box { position: relative; width: 0; height: 0; overflow: visible; }
+    .sym-svg { display: block; overflow: visible; position: absolute; top: 0; left: -20px; width: 40px; height: 60px; }
+    .sym-label { font-size: 0.7rem; font-weight: bold; white-space: nowrap; cursor: pointer; background: #fff; padding: 2px 4px; position: absolute; left: 25px; top: 20px; }
     
-    /* Línea Horizontal exacta */
-    .line-wrapper-h { display: flex; align-items: center; position: relative; height: 20px; width: auto; }
-    .line-h { height: 2px; background: #000; min-width: 20px; width: 100px; position: absolute; top: 9px; left: 0; }
-    .handle-h { width: 8px; height: 8px; background: #000; cursor: ew-resize; position: absolute; right: -4px; top: 6px; z-index: 10; }
+    /* Línea Horizontal */
+    .line-h-box { position: relative; width: 0; height: 0; }
+    .line-h-body { position: absolute; top: -1px; left: 0; height: 2px; background: #000; min-width: 20px; width: 100px; }
+    .handle-h { width: 8px; height: 8px; background: #000; cursor: ew-resize; position: absolute; top: -4px; z-index: 10; }
 
-    /* Línea Vertical exacta */
-    .line-wrapper-v { display: flex; flex-direction: column; align-items: center; position: relative; width: 20px; height: auto; }
-    .line-v { width: 2px; background: #000; min-height: 20px; height: 100px; position: absolute; left: 9px; top: 0; }
-    .handle-v { width: 8px; height: 8px; background: #000; cursor: ns-resize; position: absolute; bottom: -4px; left: 6px; z-index: 10; }
+    /* Línea Vertical */
+    .line-v-box { position: relative; width: 0; height: 0; }
+    .line-v-body { position: absolute; top: 0; left: -1px; width: 2px; background: #000; min-height: 20px; height: 100px; }
+    .handle-v { width: 8px; height: 8px; background: #000; cursor: ns-resize; position: absolute; left: -4px; z-index: 10; }
 
-    /* Cable vertical con rotulación */
-    .cable-node { display: flex; flex-direction: column; align-items: center; width: 40px; position: relative; }
-    .cable-text { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 0.6rem; font-weight: bold; white-space: nowrap; background: #fff; padding: 2px; cursor: pointer; margin: 5px 0; }
-    .circuit-label { border-top: 2px solid #000; font-size: 0.65rem; font-weight: bold; padding-top: 2px; text-align: center; background: #fff; cursor: pointer; width: 100px; position: absolute; top: 100%; left: -30px; }
+    /* Cable Vertical */
+    .cable-box { position: relative; width: 0; height: 0; }
+    .cable-text { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 0.6rem; font-weight: bold; white-space: nowrap; background: #fff; padding: 2px; cursor: pointer; position: absolute; left: 6px; top: 10px; }
+    .circuit-label { border-top: 2px solid #000; font-size: 0.65rem; font-weight: bold; padding-top: 2px; text-align: center; background: #fff; cursor: pointer; width: 120px; position: absolute; left: -60px; top: 50px; }
 
-    .del-btn { position: absolute; top: -8px; right: -8px; background: red; color: white; border: none; border-radius: 50%; width: 16px; height: 16px; font-size: 10px; cursor: pointer; display: none; line-height: 16px; text-align: center; z-index: 20; }
+    .del-btn { position: absolute; top: -12px; left: -12px; background: red; color: white; border: none; border-radius: 50%; width: 16px; height: 16px; font-size: 10px; cursor: pointer; display: none; line-height: 16px; text-align: center; z-index: 20; }
     .draggable-node:hover .del-btn { display: block; }
   </style>
 </head>
@@ -98,7 +98,8 @@
 
   <script>
     let activeNode = null;
-    let offsetX = 0, offsetY = 0;
+    let startX = 0, startY = 0;
+    let initialLeft = 0, initialTop = 0;
     const GRID_SIZE = 20;
 
     function makeDraggable(el) {
@@ -108,8 +109,11 @@
             e.target.classList.contains('handle-v')) return;
             
         activeNode = el;
-        offsetX = e.clientX - el.getBoundingClientRect().left;
-        offsetY = e.clientY - el.getBoundingClientRect().top;
+        startX = e.clientX;
+        startY = e.clientY;
+        initialLeft = parseInt(el.style.left) || 0;
+        initialTop = parseInt(el.style.top) || 0;
+
         document.addEventListener('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
       });
@@ -117,17 +121,17 @@
 
     function onMouseMove(e) {
       if (!activeNode) return;
-      const canvas = document.getElementById('canvas');
-      const rect = canvas.getBoundingClientRect();
-      let x = e.clientX - rect.left - offsetX;
-      let y = e.clientY - rect.top - offsetY;
-      
-      // Ajuste Snap a múltiplos exactos de 20px
-      x = Math.round(x / GRID_SIZE) * GRID_SIZE;
-      y = Math.round(y / GRID_SIZE) * GRID_SIZE;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
 
-      activeNode.style.left = x + 'px';
-      activeNode.style.top = y + 'px';
+      let rawX = initialLeft + dx;
+      let rawY = initialTop + dy;
+
+      let snapX = Math.round(rawX / GRID_SIZE) * GRID_SIZE;
+      let snapY = Math.round(rawY / GRID_SIZE) * GRID_SIZE;
+
+      activeNode.style.left = snapX + 'px';
+      activeNode.style.top = snapY + 'px';
     }
 
     function onMouseUp() {
@@ -138,13 +142,13 @@
 
     makeDraggable(document.getElementById('cajetin'));
 
-    // Símbolos vectoriales perfectamente centrados en eje (20px)
+    // Símbolos vectoriales con origen (0,0) exacto en la entrada del cable
     const SVGS = {
       ACOMETIDA: `<svg class="sym-svg" viewBox="0 0 40 60"><path d="M20,0 V15 M10,15 H30 V45 H10 Z M20,45 V60" stroke="#000" stroke-width="2" fill="none"/><text x="12" y="34" font-size="9" font-weight="bold">kWh</text></svg>`,
       IGA: `<svg class="sym-svg" viewBox="0 0 40 60"><path d="M20,0 V23 M20,37 V60 M20,37 L28,23" stroke="#000" stroke-width="2" fill="none"/><circle cx="20" cy="23" r="2" fill="#000"/><circle cx="20" cy="37" r="2" fill="#000"/><path d="M12,28 H24" stroke="#000" stroke-width="1.5" stroke-dasharray="2,2"/></svg>`,
       DIFERENCIAL: `<svg class="sym-svg" viewBox="0 0 40 60"><path d="M20,0 V20 M20,40 V60 M20,40 L28,23" stroke="#000" stroke-width="2" fill="none"/><circle cx="20" cy="23" r="2" fill="#000"/><circle cx="20" cy="40" r="2" fill="#000"/><rect x="7" y="21" width="12" height="20" rx="2" stroke="#000" stroke-width="1.5" fill="none"/><text x="9" y="34" font-size="7" font-weight="bold">T</text></svg>`,
       PIA: `<svg class="sym-svg" viewBox="0 0 40 60"><path d="M20,0 V23 M20,37 V60 M20,37 L28,23" stroke="#000" stroke-width="2" fill="none"/><circle cx="20" cy="23" r="2" fill="#000"/><circle cx="20" cy="37" r="2" fill="#000"/><rect x="8" y="26" width="8" height="8" stroke="#000" stroke-width="1.5" fill="none"/></svg>`,
-      TIERRA: `<svg class="sym-svg" viewBox="0 0 40 40"><path d="M20,0 V20 M5,20 H35 M10,26 H30 M15,32 H25" stroke="#000" stroke-width="2" fill="none"/></svg>`
+      TIERRA: `<svg class="sym-svg" viewBox="0 0 40 40" style="height:40px;"><path d="M20,0 V20 M5,20 H35 M10,26 H30 M15,32 H25" stroke="#000" stroke-width="2" fill="none"/></svg>`
     };
 
     function spawn(tipo) {
@@ -158,36 +162,36 @@
 
       if (tipo === 'LINEA_H') {
         inner += `
-          <div class="line-wrapper-h">
-            <div class="line-h"></div>
-            <div class="handle-h"></div>
+          <div class="line-h-box">
+            <div class="line-h-body"></div>
+            <div class="handle-h" style="left:100px;"></div>
           </div>`;
       } else if (tipo === 'LINEA_V') {
         inner += `
-          <div class="line-wrapper-v">
-            <div class="line-v"></div>
-            <div class="handle-v"></div>
+          <div class="line-v-box">
+            <div class="line-v-body"></div>
+            <div class="handle-v" style="top:100px;"></div>
           </div>`;
       } else if (tipo === 'ACOMETIDA') {
-        inner += `<div class="sym-container">${SVGS.ACOMETIDA}<div class="sym-label" ondblclick="editTxt(this)">CGP / MEDIDA 230V</div></div>`;
+        inner += `<div class="sym-box">${SVGS.ACOMETIDA}<div class="sym-label" ondblclick="editTxt(this)">CGP / MEDIDA 230V</div></div>`;
       } else if (tipo === 'IGA') {
-        inner += `<div class="sym-container">${SVGS.IGA}<div class="sym-label" ondblclick="editTxt(this)">IGA II POLOS 40A</div></div>`;
+        inner += `<div class="sym-box">${SVGS.IGA}<div class="sym-label" ondblclick="editTxt(this)">IGA II POLOS 40A</div></div>`;
       } else if (tipo === 'DIFERENCIAL') {
-        inner += `<div class="sym-container">${SVGS.DIFERENCIAL}<div class="sym-label" ondblclick="editTxt(this)">I.DIF. II POLOS 40A 30mA</div></div>`;
+        inner += `<div class="sym-box">${SVGS.DIFERENCIAL}<div class="sym-label" ondblclick="editTxt(this)">I.DIF. II POLOS 40A 30mA</div></div>`;
       } else if (tipo === 'PIA') {
-        inner += `<div class="sym-container">${SVGS.PIA}<div class="sym-label" ondblclick="editTxt(this)">I.MAG. II POLOS 16A</div></div>`;
+        inner += `<div class="sym-box">${SVGS.PIA}<div class="sym-label" ondblclick="editTxt(this)">I.MAG. II POLOS 16A</div></div>`;
       } else if (tipo === 'TIERRA') {
-        inner += `<div class="sym-container">${SVGS.TIERRA}</div>`;
+        inner += `<div class="sym-box">${SVGS.TIERRA}</div>`;
       } else if (tipo === 'CABLE') {
         inner += `
-          <div class="cable-node">
-            <div class="line-v" style="height: 40px; position:static;"></div>
+          <div class="cable-box">
+            <div class="line-v-body" style="height:40px;"></div>
             <div class="cable-text" ondblclick="editTxt(this)">2x2.5+TTx2.5mm2Cu BAJO TUBO=20mm</div>
             <div class="circuit-label" ondblclick="editTxt(this)">C2-TOMAS DE CORRIENTE</div>
           </div>
         `;
       } else if (tipo === 'TEXTO') {
-        inner += `<div class="sym-label" style="position:static" ondblclick="editTxt(this)">Texto / Nota técnica</div>`;
+        inner += `<div class="sym-label" style="position:static;" ondblclick="editTxt(this)">Texto / Nota técnica</div>`;
       }
 
       node.innerHTML = inner;
@@ -200,13 +204,13 @@
 
     function initResizeH(node) {
       const handle = node.querySelector('.handle-h');
-      const line = node.querySelector('.line-h');
+      const line = node.querySelector('.line-h-body');
       handle.addEventListener('mousedown', (e) => {
         e.stopPropagation();
-        const startX = e.clientX;
+        const startXPos = e.clientX;
         const startW = line.offsetWidth;
         function onMove(eMove) {
-          let diff = eMove.clientX - startX;
+          let diff = eMove.clientX - startXPos;
           let newWidth = Math.max(20, Math.round((startW + diff) / GRID_SIZE) * GRID_SIZE);
           line.style.width = newWidth + 'px';
           handle.style.left = newWidth + 'px';
@@ -222,16 +226,16 @@
 
     function initResizeV(node) {
       const handle = node.querySelector('.handle-v');
-      const line = node.querySelector('.line-v');
+      const line = node.querySelector('.line-v-body');
       handle.addEventListener('mousedown', (e) => {
         e.stopPropagation();
-        const startY = e.clientY;
+        const startYPos = e.clientY;
         const startH = line.offsetHeight;
         function onMove(eMove) {
-          let diff = eMove.clientY - startY;
+          let diff = eMove.clientY - startYPos;
           let newHeight = Math.max(20, Math.round((startH + diff) / GRID_SIZE) * GRID_SIZE);
           line.style.height = newHeight + 'px';
-          handle.style.top = (newHeight - 4) + 'px';
+          handle.style.top = newHeight + 'px';
         }
         function onStop() {
           document.removeEventListener('mousemove', onMove);
