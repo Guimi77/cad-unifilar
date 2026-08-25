@@ -181,7 +181,7 @@
           ctx.strokeStyle = '#00f';
           ctx.lineWidth = 1;
           ctx.setLineDash([2, 2]);
-          ctx.strokeRect(-10, -10, 40, 45);
+          ctx.strokeRect(-10, -10, 40, 55);
           ctx.setLineDash([]);
         }
 
@@ -221,12 +221,12 @@
         ctx.beginPath(); ctx.arc(0, 15, 2, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.arc(0, 42, 2, 0, Math.PI*2); ctx.fill();
 
-        // Cuadrado de test conectado al contacto superior y realimentación al nodo inferior
-        ctx.strokeRect(8, 17, 7, 7);
+        // Cuadrado de test y realimentación exacta como en la referencia
+        ctx.strokeRect(8, 24, 7, 7);
         ctx.beginPath();
-        ctx.moveTo(8, 20);
-        ctx.lineTo(4, 20);
-        ctx.lineTo(4, 42);
+        ctx.moveTo(8, 27.5);
+        ctx.lineTo(6, 27.5);
+        ctx.lineTo(6, 42);
         ctx.lineTo(0, 42);
         ctx.stroke();
         ctx.beginPath(); ctx.arc(0, 42, 2, 0, Math.PI*2); ctx.fill();
@@ -256,11 +256,11 @@
         });
 
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(18, 14, maxWidth + 6, (lines.length * 11) + 4);
+        ctx.fillRect(17, 20, maxWidth + 6, (lines.length * 11) + 4);
 
         ctx.fillStyle = '#000000';
         lines.forEach((line, index) => {
-          ctx.fillText(line, 21, 25 + (index * 11));
+          ctx.fillText(line, 20, 31 + (index * 11));
         });
       }
     }
@@ -314,7 +314,7 @@
         }
 
         let hitBoxW = el.w || 30;
-        let hitBoxH = el.h || 40;
+        let hitBoxH = el.h || 45;
         if (mouseX >= el.x - 10 && mouseX <= el.x + hitBoxW && mouseY >= el.y - 10 && mouseY <= el.y + hitBoxH) {
           selectedElement = el;
           isDragging = true;
@@ -367,7 +367,7 @@
 
       elements.forEach(el => {
         let hitBoxW = el.w || 30;
-        let hitBoxH = el.h || 40;
+        let hitBoxH = el.h || 45;
         if (mouseX >= el.x - 10 && mouseX <= el.x + hitBoxW && mouseY >= el.y - 10 && mouseY <= el.y + hitBoxH) {
           let val = prompt('Editar texto (usa | para saltos de línea):', el.text);
           if (val !== null) {
