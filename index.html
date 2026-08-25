@@ -90,8 +90,8 @@
         type: type,
         x: 100,
         y: 100,
-        w: 100, // Para líneas horizontales
-        h: 100, // Para líneas verticales
+        w: 100,
+        h: 100,
         text: getDefaultText(type)
       };
       elements.push(elem);
@@ -125,11 +125,9 @@
       }
     });
 
-    // --- RENDERIZADO TOTAL EN CANVAS ---
     function draw(isExporting = false) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Fondo blanco obligatorio para evitar transparencias
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -198,7 +196,6 @@
       ctx.lineWidth = 2;
       ctx.fillStyle = '#000';
 
-      // Línea de entrada superior
       ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 15); ctx.stroke();
 
       if (type === 'ACOMETIDA') {
@@ -207,14 +204,32 @@
         ctx.fillText('kWh', -11, 33);
         ctx.beginPath(); ctx.moveTo(0, 45); ctx.lineTo(0, 60); ctx.stroke();
       } 
-      else if (type === 'IGA' || type === 'PIA' || type === 'DIFERENCIAL') {
-        // Contacto abierto común para magnetotérmicos y diferenciales
+      else if (type === 'IGA' || type === 'PIA') {
         ctx.beginPath();
         ctx.moveTo(0, 15); ctx.lineTo(8, 27);
         ctx.moveTo(0, 42); ctx.lineTo(0, 60);
         ctx.stroke();
         ctx.beginPath(); ctx.arc(0, 15, 2, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.arc(0, 42, 2, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(0, 42); ctx.lineTo(0, 60); ctx.stroke();
+      }
+      else if (type === 'DIFERENCIAL') {
+        ctx.beginPath();
+        ctx.moveTo(0, 15); ctx.lineTo(8, 27);
+        ctx.moveTo(0, 42); ctx.lineTo(0, 60);
+        ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, 15, 2, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(0, 42, 2, 0, Math.PI*2); ctx.fill();
+
+        ctx.strokeRect(8, 21, 7, 7);
+        ctx.beginPath();
+        ctx.moveTo(8, 24);
+        ctx.lineTo(2, 24);
+        ctx.lineTo(2, 38);
+        ctx.lineTo(0, 38);
+        ctx.stroke();
+        ctx.beginPath(); ctx.arc(2, 38, 2, 0, Math.PI*2); ctx.fill();
+
         ctx.beginPath(); ctx.moveTo(0, 42); ctx.lineTo(0, 60); ctx.stroke();
       }
       else if (type === 'TIERRA') {
@@ -226,7 +241,6 @@
         ctx.stroke();
       }
 
-      // Texto en bloque vertical
       if (text && type !== 'TIERRA') {
         ctx.font = 'bold 9px "Courier New"';
         let lines = text.split('|');
@@ -241,11 +255,11 @@
         });
 
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(16, 14, maxWidth + 6, (lines.length * 11) + 4);
+        ctx.fillRect(18, 14, maxWidth + 6, (lines.length * 11) + 4);
 
         ctx.fillStyle = '#000000';
         lines.forEach((line, index) => {
-          ctx.fillText(line, 19, 25 + (index * 11));
+          ctx.fillText(line, 21, 25 + (index * 11));
         });
       }
     }
@@ -273,7 +287,6 @@
       ctx.fillText('DIRECCIÓN: ' + cajetin.dir, cajetin.x + 6, cajetin.y + 48);
     }
 
-    // --- INTERACCIÓN DE RATÓN Y SNAP CAD ---
     canvas.addEventListener('mousedown', (e) => {
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
