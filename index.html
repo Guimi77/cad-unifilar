@@ -221,14 +221,15 @@
         ctx.beginPath(); ctx.arc(0, 15, 2, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.arc(0, 42, 2, 0, Math.PI*2); ctx.fill();
 
-        ctx.strokeRect(8, 21, 7, 7);
+        // Cuadrado de test conectado al contacto superior y realimentación al nodo inferior
+        ctx.strokeRect(8, 17, 7, 7);
         ctx.beginPath();
-        ctx.moveTo(8, 24);
-        ctx.lineTo(2, 24);
-        ctx.lineTo(2, 38);
-        ctx.lineTo(0, 38);
+        ctx.moveTo(8, 20);
+        ctx.lineTo(4, 20);
+        ctx.lineTo(4, 42);
+        ctx.lineTo(0, 42);
         ctx.stroke();
-        ctx.beginPath(); ctx.arc(2, 38, 2, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(0, 42, 2, 0, Math.PI*2); ctx.fill();
 
         ctx.beginPath(); ctx.moveTo(0, 42); ctx.lineTo(0, 60); ctx.stroke();
       }
