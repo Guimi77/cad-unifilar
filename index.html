@@ -37,12 +37,13 @@
     
     /* Contenedores y Símbolos */
     .sym-container { display: flex; align-items: center; gap: 8px; }
+    .sym-block-vertical { display: flex; flex-direction: column; align-items: center; }
     .sym-svg { width: 40px; height: 50px; display: flex; justify-content: center; align-items: center; }
     .sym-label { font-size: 0.7rem; font-weight: bold; white-space: nowrap; cursor: pointer; background: #fff; padding: 2px 4px; }
     
     /* Líneas de conexión */
     .line-h { height: 2px; background: #000; min-width: 20px; cursor: pointer; }
-    .line-v { width: 2px; background: #000; min-height: 20px; cursor: pointer; }
+    .line-v { width: 2px; background: #000; min-height: 10px; cursor: pointer; }
 
     /* Cable vertical con rotulación */
     .cable-node { display: flex; flex-direction: column; align-items: center; }
@@ -65,8 +66,8 @@
 
   <div class="container">
     <div class="sidebar">
-      <div class="sidebar-title">CONEXIONES</div>
-      <button class="btn-lib" onclick="spawn('LINEA_H')">➖ LÍNEA HORIZ. (EMBARRADO)</button>
+      <div class="sidebar-title">LÍNEAS DE CONEXIÓN</div>
+      <button class="btn-lib" onclick="spawn('LINEA_H')">➖ LÍNEA HORIZONTAL</button>
       <button class="btn-lib" onclick="spawn('LINEA_V')">🏽 LÍNEA VERTICAL</button>
 
       <div class="sidebar-title" style="margin-top:10px;">SÍMBOLOS NORMALIZADOS</div>
@@ -145,9 +146,9 @@
       let inner = `<button class="del-btn" onclick="this.parentElement.remove()">✕</button>`;
 
       if (tipo === 'LINEA_H') {
-        inner += `<div class="line-h" style="width: 200px;" onclick="resizeLineH(this)" title="Clic para cambiar longitud"></div>`;
+        inner += `<div class="line-h" style="width: 200px;" onclick="resizeLineH(this)" title="Haz clic para ajustar ancho"></div>`;
       } else if (tipo === 'LINEA_V') {
-        inner += `<div class="line-v" style="height: 60px;" onclick="resizeLineV(this)" title="Clic para cambiar longitud"></div>`;
+        inner += `<div class="line-v" style="height: 100px;" onclick="resizeLineV(this)" title="Haz clic para ajustar altura"></div>`;
       } else if (tipo === 'ACOMETIDA') {
         inner += `<div class="sym-container">${SVGS.ACOMETIDA}<div class="sym-label" onclick="editTxt(this)">CGP / MEDIDA 230V</div></div>`;
       } else if (tipo === 'IGA') {
@@ -161,6 +162,7 @@
       } else if (tipo === 'CABLE') {
         inner += `
           <div class="cable-node">
+            <div class="line-v" style="height: 20px;" onclick="resizeLineV(this)"></div>
             <div class="cable-text" onclick="editTxt(this)">2x2.5+TTx2.5mm2Cu BAJO TUBO=20mm</div>
             <div class="circuit-label" onclick="editTxt(this)">C2-TOMAS DE CORRIENTE</div>
           </div>
@@ -175,12 +177,12 @@
     }
 
     function resizeLineH(el) {
-      const w = prompt('Ancho de la línea horizontal (px):', parseInt(el.style.width) || 200);
+      const w = prompt('Longitud de la línea horizontal (px):', parseInt(el.style.width) || 200);
       if (w !== null && !isNaN(w)) el.style.width = w + 'px';
     }
 
     function resizeLineV(el) {
-      const h = prompt('Altura de la línea vertical (px):', parseInt(el.style.height) || 60);
+      const h = prompt('Altura de la línea vertical (px):', parseInt(el.style.height) || 100);
       if (h !== null && !isNaN(h)) el.style.height = h + 'px';
     }
 
