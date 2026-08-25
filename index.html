@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CAD UNIFILAR SIMBOLOGÍA REBT</title>
+  <title>CAD UNIFILAR REBT</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Courier New', Courier, monospace; }
@@ -17,10 +17,10 @@
 
     .container { display: flex; flex: 1; height: calc(100vh - 45px); }
     
-    .sidebar { width: 230px; border-right: 2px solid #000; padding: 15px 10px; background: #fff; display: flex; flex-direction: column; gap: 8px; z-index: 10; }
+    .sidebar { width: 230px; border-right: 2px solid #000; padding: 15px 10px; background: #fff; display: flex; flex-direction: column; gap: 8px; z-index: 10; overflow-y: auto; }
     .sidebar-title { font-size: 0.8rem; font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 4px; }
     .sidebar-sub { font-size: 0.65rem; color: #555; margin-bottom: 5px; }
-    .btn-lib { background: #fff; border: 1px solid #000; padding: 10px 8px; text-align: left; font-size: 0.7rem; font-weight: bold; cursor: pointer; }
+    .btn-lib { background: #fff; border: 1px solid #000; padding: 8px 8px; text-align: left; font-size: 0.7rem; font-weight: bold; cursor: pointer; }
     .btn-lib:hover { background: #f0f0f0; }
 
     .canvas-area { flex: 1; background: #ffffff; background-image: radial-gradient(#aaa 1px, transparent 1px); background-size: 20px 20px; position: relative; overflow: hidden; }
@@ -33,15 +33,18 @@
 
     /* Nodo Draggable */
     .draggable-node { position: absolute; cursor: move; display: flex; align-items: center; background: transparent; padding: 2px; }
-    .draggable-node:hover { outline: 1px dashed #000; }
+    .draggable-node:hover { outline: 1px dashed #999; }
     
-    /* Contenedor de símbolo y texto a la derecha */
+    /* Contenedores y Símbolos */
     .sym-container { display: flex; align-items: center; gap: 8px; }
     .sym-svg { width: 40px; height: 50px; display: flex; justify-content: center; align-items: center; }
-    .sym-label { font-size: 0.7rem; font-weight: bold; white-space: nowrap; cursor: pointer; background: #fff; padding: 2px 4px; border: 1px transparent dashed; }
-    .sym-label:hover { border-color: #999; }
+    .sym-label { font-size: 0.7rem; font-weight: bold; white-space: nowrap; cursor: pointer; background: #fff; padding: 2px 4px; }
+    
+    /* Líneas de conexión */
+    .line-h { height: 2px; background: #000; min-width: 20px; cursor: pointer; }
+    .line-v { width: 2px; background: #000; min-height: 20px; cursor: pointer; }
 
-    /* Texto vertical para cables */
+    /* Cable vertical con rotulación */
     .cable-node { display: flex; flex-direction: column; align-items: center; }
     .cable-text { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 0.6rem; font-weight: bold; white-space: nowrap; background: #fff; padding: 2px; cursor: pointer; }
     .circuit-label { border-top: 2px solid #000; font-size: 0.65rem; font-weight: bold; padding-top: 2px; text-align: center; background: #fff; cursor: pointer; }
@@ -53,7 +56,7 @@
 <body>
 
   <header>
-    <h1>⚡ CAD UNIFILAR - SIMBOLOGÍA REBT</h1>
+    <h1>⚡ CAD UNIFILAR - REBT ESQUEMÁTICO</h1>
     <div class="header-btns">
       <button class="btn-hdr" onclick="exportarPNG()">📥 EXPORTAR PNG</button>
       <button class="btn-hdr" onclick="editarCajetin()">⚙️ CAJETÍN</button>
@@ -62,18 +65,21 @@
 
   <div class="container">
     <div class="sidebar">
-      <div class="sidebar-title">SÍMBOLOS NORMALIZADOS</div>
-      <div class="sidebar-sub">Texto anclado a la derecha del símbolo</div>
+      <div class="sidebar-title">CONEXIONES</div>
+      <button class="btn-lib" onclick="spawn('LINEA_H')">➖ LÍNEA HORIZ. (EMBARRADO)</button>
+      <button class="btn-lib" onclick="spawn('LINEA_V')">🏽 LÍNEA VERTICAL</button>
+
+      <div class="sidebar-title" style="margin-top:10px;">SÍMBOLOS NORMALIZADOS</div>
       <button class="btn-lib" onclick="spawn('ACOMETIDA')">➕ ACOMETIDA / CONTADOR</button>
       <button class="btn-lib" onclick="spawn('IGA')">➕ IGA / ICP (SECCIONADOR)</button>
       <button class="btn-lib" onclick="spawn('DIFERENCIAL')">➕ DIFERENCIAL (ID)</button>
       <button class="btn-lib" onclick="spawn('PIA')">➕ MAGNETOTÉRMICO (PIA)</button>
       <button class="btn-lib" onclick="spawn('CABLE')">➕ LÍNEA CABLE / CIRCUITO</button>
+      <button class="btn-lib" onclick="spawn('TIERRA')">➕ TOMA DE TIERRA</button>
       <button class="btn-lib" onclick="spawn('TEXTO')">➕ NOTA / TEXTO LIBRE</button>
     </div>
 
     <div class="canvas-area" id="canvas">
-      <!-- Cajetín Móbible -->
       <div class="cajetin" id="cajetin">
         <div class="cajetin-head">CUADRO ELÉCTRICO GENERAL</div>
         <div class="cajetin-body">
@@ -121,24 +127,28 @@
 
     makeDraggable(document.getElementById('cajetin'));
 
-    // Símbolos en formato SVG vectorial normalizado
     const SVGS = {
       ACOMETIDA: `<svg class="sym-svg" viewBox="0 0 40 50"><path d="M20,0 V15 M10,15 H30 V35 H10 Z M20,35 V50" stroke="#000" stroke-width="2" fill="none"/><text x="14" y="28" font-size="10" font-weight="bold">kWh</text></svg>`,
       IGA: `<svg class="sym-svg" viewBox="0 0 40 50"><path d="M20,0 V18 M20,32 V50 M20,32 L28,18" stroke="#000" stroke-width="2" fill="none"/><circle cx="20" cy="18" r="2" fill="#000"/><circle cx="20" cy="32" r="2" fill="#000"/><path d="M12,22 H24" stroke="#000" stroke-width="1.5" stroke-dasharray="2,2"/></svg>`,
       DIFERENCIAL: `<svg class="sym-svg" viewBox="0 0 40 50"><path d="M20,0 V15 M20,35 V50 M20,35 L28,20" stroke="#000" stroke-width="2" fill="none"/><circle cx="20" cy="20" r="2" fill="#000"/><circle cx="20" cy="35" r="2" fill="#000"/><rect x="8" y="16" width="12" height="18" rx="2" stroke="#000" stroke-width="1.5" fill="none"/><text x="10" y="28" font-size="7" font-weight="bold">T</text></svg>`,
-      PIA: `<svg class="sym-svg" viewBox="0 0 40 50"><path d="M20,0 V18 M20,32 V50 M20,32 L28,18" stroke="#000" stroke-width="2" fill="none"/><circle cx="20" cy="18" r="2" fill="#000"/><circle cx="20" cy="32" r="2" fill="#000"/><rect x="8" y="21" width="8" height="8" stroke="#000" stroke-width="1.5" fill="none"/></svg>`
+      PIA: `<svg class="sym-svg" viewBox="0 0 40 50"><path d="M20,0 V18 M20,32 V50 M20,32 L28,18" stroke="#000" stroke-width="2" fill="none"/><circle cx="20" cy="18" r="2" fill="#000"/><circle cx="20" cy="32" r="2" fill="#000"/><rect x="8" y="21" width="8" height="8" stroke="#000" stroke-width="1.5" fill="none"/></svg>`,
+      TIERRA: `<svg class="sym-svg" viewBox="0 0 40 30"><path d="M20,0 V12 M5,12 H35 M10,18 H30 M15,24 H25" stroke="#000" stroke-width="2" fill="none"/></svg>`
     };
 
     function spawn(tipo) {
       const canvas = document.getElementById('canvas');
       const node = document.createElement('div');
       node.className = 'draggable-node';
-      node.style.left = '100px';
-      node.style.top = '100px';
+      node.style.left = '120px';
+      node.style.top = '120px';
 
       let inner = `<button class="del-btn" onclick="this.parentElement.remove()">✕</button>`;
 
-      if (tipo === 'ACOMETIDA') {
+      if (tipo === 'LINEA_H') {
+        inner += `<div class="line-h" style="width: 200px;" onclick="resizeLineH(this)" title="Clic para cambiar longitud"></div>`;
+      } else if (tipo === 'LINEA_V') {
+        inner += `<div class="line-v" style="height: 60px;" onclick="resizeLineV(this)" title="Clic para cambiar longitud"></div>`;
+      } else if (tipo === 'ACOMETIDA') {
         inner += `<div class="sym-container">${SVGS.ACOMETIDA}<div class="sym-label" onclick="editTxt(this)">CGP / MEDIDA 230V</div></div>`;
       } else if (tipo === 'IGA') {
         inner += `<div class="sym-container">${SVGS.IGA}<div class="sym-label" onclick="editTxt(this)">IGA II POLOS 40A</div></div>`;
@@ -146,6 +156,8 @@
         inner += `<div class="sym-container">${SVGS.DIFERENCIAL}<div class="sym-label" onclick="editTxt(this)">I.DIF. II POLOS 40A 30mA</div></div>`;
       } else if (tipo === 'PIA') {
         inner += `<div class="sym-container">${SVGS.PIA}<div class="sym-label" onclick="editTxt(this)">I.MAG. II POLOS 16A</div></div>`;
+      } else if (tipo === 'TIERRA') {
+        inner += `<div class="sym-container">${SVGS.TIERRA}</div>`;
       } else if (tipo === 'CABLE') {
         inner += `
           <div class="cable-node">
@@ -160,6 +172,16 @@
       node.innerHTML = inner;
       canvas.appendChild(node);
       makeDraggable(node);
+    }
+
+    function resizeLineH(el) {
+      const w = prompt('Ancho de la línea horizontal (px):', parseInt(el.style.width) || 200);
+      if (w !== null && !isNaN(w)) el.style.width = w + 'px';
+    }
+
+    function resizeLineV(el) {
+      const h = prompt('Altura de la línea vertical (px):', parseInt(el.style.height) || 60);
+      if (h !== null && !isNaN(h)) el.style.height = h + 'px';
     }
 
     function editTxt(el) {
