@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CAD UNIFILAR</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Courier New', Courier, monospace; }
+    body { display: flex; flex-direction: column; height: 100vh; background: #ffffff; color: #000; overflow: hidden; }
+    
+    /* Encabezado Superior */
+    header { height: 50px; border-bottom: 2px solid #000; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; background: #fff; }
+    header h1 { font-size: 1.1rem; font-weight: bold; letter-spacing: 1px; }
+    .header-btns { display: flex; gap: 10px; }
+    .btn-hdr { background: #000; color: #fff; border: none; padding: 8px 16px; font-size: 0.8rem; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 5px; }
+    .btn-hdr:hover { background: #333; }
+
+    /* Estructura Principal */
+    .container { display: flex; flex: 1; height: calc(100vh - 50px); }
+    
+    /* Panel Lateral - Librería CAD */
+    .sidebar { width: 220px; border-right: 2px solid #000; padding: 15px 10px; background: #fff; display: flex; flex-direction: column; gap: 10px; }
+    .sidebar-title { font-size: 0.85rem; font-weight: bold; margin-bottom: 2px; }
+    .sidebar-sub { font-size: 0.65rem; color: #555; margin-bottom: 10px; }
+    .btn-lib { background: #fff; border: 1px solid #000; padding: 12px 8px; text-align: left; font-size: 0.7rem; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .btn-lib:hover { background: #f0f0f0; }
+
+    /* Área de Dibujo (Lienzo) */
+    .canvas-area { flex: 1; background: #fcfcfc; background-image: radial-gradient(#aaa 1px, transparent 1px); background-size: 15px 15px; position: relative; overflow: auto; padding: 40px; }
+    
+    /* Cajetín Técnico de Rotulación */
+    .cajetin { position: absolute; top: 30px; right: 40px; border: 2px solid #000; background: #fff; width: 240px; font-size: 0.7rem; }
+    .cajetin-head { border-bottom: 2px solid #000; text-align: center; font-weight: bold; padding: 6px; text-transform: uppercase; }
+    .cajetin-body { padding: 8px; }
+    .cajetin-field { margin-bottom: 6px; }
+    .cajetin-label { font-size: 0.6rem; color: #444; text-transform: uppercase; }
+    .cajetin-val { font-weight: bold; cursor: pointer; }
+
+    /* Estructura del Diagrama CAD */
+    .diagram-tree { display: flex; flex-direction: column; align-items: flex-start; gap: 0px; margin-top: 20px; margin-left: 50px; }
+    .line-v { width: 2px; height: 35px; background: #000; margin-left: 20px; }
+    .node-row { display: flex; align-items: center; position: relative; }
+    .node-box { border: 1px solid #000; background: #fff; padding: 4px 8px; font-size: 0.75rem; font-weight: bold; cursor: pointer; }
+    .node-symbol { width: 40px; height: 40px; border: 2px solid #000; background: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.8rem; cursor: pointer; }
+    .node-info { margin-left: 10px; font-size: 0.7rem; font-weight: bold; line-height: 1.2; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>⚡ CAD UNIFILAR</h1>
+    <div class="header-btns">
+      <button class="btn-hdr" onclick="exportarPNG()">📥 EXPORTAR PNG</button>
+      <button class="btn-hdr" onclick="editarCajetin()">⚙️ AJUSTES</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="sidebar">
+      <div class="sidebar-title">LIBRERÍA CAD</div>
+      <div class="sidebar-sub">Haz clic para añadir componentes al cuadro</div>
+      <button class="btn-lib" onclick="addElem('ACOMETIDA')">🔌 ACOMETIDA / CONTADOR</button>
+      <button class="btn-lib" onclick="addElem('IGA')">⚡ INTERRUPTOR GENERAL (IGA)</button>
+      <button class="btn-lib" onclick="addElem('SOBRETENSIONES')">🛡️ SOBRETENSIONES</button>
+      <button class="btn-lib" onclick="addElem('DIFERENCIAL')">📉 DIFERENCIAL</button>
+      <button class="btn-lib" onclick="addElem('PIA')">🔲 MAGNETOTÉRMICO (PIA)</button>
+    </div>
+
+    <div class="canvas-area" id="canvas">
+      <!-- Cajetín -->
+      <div class="cajetin">
+        <div class="cajetin-head">CUADRO ELÉCTRICO</div>
+        <div class="cajetin-body">
+          <div class="cajetin-field">
+            <div class="cajetin-label">TÍTULO:</div>
+            <div class="cajetin-val" id="cj-titulo" onclick="editarCajetin()">Cuadro Principal</div>
+          </div>
+          <div class="cajetin-field">
+            <div class="cajetin-label">DIRECCIÓN:</div>
+            <div class="cajetin-val" id="cj-dir" onclick="editarCajetin()">c/ Sa Pansa, 24</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Diagrama Unifilar -->
+      <div class="diagram-tree" id="tree">
+        <div class="node-row">
+          <div class="node-box" onclick="editTxt(this)">Desde Contador</div>
+          <div style="width: 30px; height: 2px; background: #000;"></div>
+          <div class="node-box" onclick="editTxt(this)">2x16mm 2P (30 mts.)</div>
+        </div>
+        <div class="line-v"></div>
+        <div class="node-row">
+          <div class="node-symbol" onclick="editTxt(this)">IG</div>
+          <div class="node-info" onclick="editTxt(this)">
+            <div>IGA</div>
+            <div>40A - 2P</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function addElem(tipo) {
+      const tree = document.getElementById('tree');
+      
+      const line = document.createElement('div');
+      line.className = 'line-v';
+      
+      const row = document.createElement('div');
+      row.className = 'node-row';
+      
+      let sym = 'PIA';
+      let info = '16A - 2P';
+      if (tipo === 'DIFERENCIAL') { sym = 'ID'; info = '40A 30mA'; }
+      if (tipo === 'SOBRETENSIONES') { sym = 'PCS'; info = 'T2 20kA'; }
+      if (tipo === 'ACOMETIDA') { sym = 'AC'; info = 'Monofásica / Tripartita'; }
+      if (tipo === 'IGA') { sym = 'IG'; info = '40A - 2P'; }
+      
+      row.innerHTML = `
+        <div class="node-symbol" onclick="editTxt(this)">${sym}</div>
+        <div class="node-info" onclick="editTxt(this)">
+          <div>${tipo}</div>
+          <div>${info}</div>
+        </div>
+      `;
+      
+      tree.appendChild(line);
+      tree.appendChild(row);
+    }
+
+    function editTxt(el) {
+      const val = prompt('Editar especificación o texto CAD:', el.innerText.replace(/\n/g, ' '));
+      if (val !== null && val.trim() !== '') el.innerText = val;
+    }
+
+    function editarCajetin() {
+      const t = prompt('Título del Cuadro:', document.getElementById('cj-titulo').innerText);
+      if (t !== null) document.getElementById('cj-titulo').innerText = t;
+      const d = prompt('Dirección de la instalación:', document.getElementById('cj-dir').innerText);
+      if (d !== null) document.getElementById('cj-dir').innerText = d;
+    }
+
+    function exportarPNG() {
+      html2canvas(document.getElementById('canvas'), { backgroundColor: '#fcfcfc' }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = 'esquema-unifilar-cad.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      });
+    }
+  </script>
+</body>
+</html>
