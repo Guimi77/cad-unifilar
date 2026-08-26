@@ -166,6 +166,7 @@
       background: rgba(15, 28, 36, 0.48);
       backdrop-filter: blur(4px);
     }
+    [hidden] { display: none !important; }
     .editor-backdrop[hidden] { display: none; }
     .editor-dialog {
       width: min(460px, 100%);
@@ -259,29 +260,12 @@
       <h2 id="editorTitle">Editar elemento</h2>
       <p class="editor-help" id="editorHelp">Pulsa Enter para crear una nueva línea.</p>
 
-      <div id="genericEditor" class="editor-field">
-        <label for="elementText">Texto del símbolo</label>
+      <div id="genericEditor" class="editor-field" hidden>
+        <label for="elementText">Texto libre</label>
         <textarea id="elementText"></textarea>
       </div>
 
-      <div id="piaEditor" class="pia-fields" hidden>
-        <div class="editor-field">
-          <label for="piaPoles">Número de polos</label>
-          <input id="piaPoles" type="text" placeholder="2P">
-        </div>
-        <div class="editor-field">
-          <label for="piaAmps">Intensidad</label>
-          <input id="piaAmps" type="text" placeholder="16A">
-        </div>
-        <div class="editor-field wide">
-          <label for="piaCircuit">Nombre del circuito</label>
-          <input id="piaCircuit" type="text" placeholder="Iluminación">
-        </div>
-        <div class="editor-field wide">
-          <label for="piaDistance">Distancia</label>
-          <input id="piaDistance" type="text" placeholder="15 m">
-        </div>
-      </div>
+      <div id="structuredEditor" class="pia-fields"></div>
 
       <div class="editor-actions">
         <button class="btn-hdr" type="button" onclick="closeTextEditor()">Cancelar</button>
@@ -418,13 +402,14 @@
     function getDefaultText(type) {
       switch(type) {
         case 'ACOMETIDA': return '4x16mm² (15mts)';
-        case 'IGA': return 'Mag.|40A';
-        case 'DIFERENCIAL': return 'Dif.|40A|30mA';
-        case 'SOBRETENSION': return 'SPD T2|Uc 275V|Imax 40kA';
+        case 'IGA': return '4P\n40A';
+        case 'DIFERENCIAL': return '4P\n40A\n30mA';
+        case 'SOBRETENSION': return 'SPD T2\nUc 275V\nImax 40kA';
         case 'PIA': {
           const number = elements.filter(el => el.type === 'PIA').length + 1;
           return '2P\n16A\nC' + number + ' Circuito\n(15 m)';
         }
+        case 'TIERRA': return 'PE 16mm²';
         case 'TEXTO': return 'Nota técnica';
         default: return '';
       }
@@ -684,7 +669,7 @@
         ctx.stroke();
       }
 
-      if (text && type !== 'TIERRA') {
+      if (text) {
         ctx.font = 'bold 9px "Courier New"';
         const lines = normalizeTextLines(text);
 
@@ -996,6 +981,55 @@
 
     let editingElement = null;
 
+    const symbolEditorSchemas = {
+      ACOMETIDA: {
+        title: 'Editar acometida',
+        fields: [
+          { key: 'poles', label: 'Número de polos', placeholder: '4', value: '4' },
+          { key: 'section', label: 'Sección del cable', placeholder: '16mm²', value: '16mm²' },
+          { key: 'distance', label: 'Distancia', placeholder: '15 m', value: '15 m', wide: true }
+        ]
+      },
+      IGA: {
+        title: 'Editar interruptor general',
+        fields: [
+          { key: 'poles', label: 'Número de polos', placeholder: '4P', value: '4P' },
+          { key: 'amps', label: 'Intensidad', placeholder: '40A', value: '40A' }
+        ]
+      },
+      DIFERENCIAL: {
+        title: 'Editar diferencial',
+        fields: [
+          { key: 'poles', label: 'Número de polos', placeholder: '4P', value: '4P' },
+          { key: 'amps', label: 'Intensidad', placeholder: '40A', value: '40A' },
+          { key: 'sensitivity', label: 'Sensibilidad', placeholder: '30mA', value: '30mA', wide: true }
+        ]
+      },
+      SOBRETENSION: {
+        title: 'Editar protección contra sobretensiones',
+        fields: [
+          { key: 'spdType', label: 'Tipo', placeholder: 'SPD T2', value: 'SPD T2' },
+          { key: 'uc', label: 'Tensión Uc', placeholder: 'Uc 275V', value: 'Uc 275V' },
+          { key: 'imax', label: 'Corriente máxima', placeholder: 'Imax 40kA', value: 'Imax 40kA', wide: true }
+        ]
+      },
+      PIA: {
+        title: 'Editar magnetotérmico',
+        fields: [
+          { key: 'poles', label: 'Número de polos', placeholder: '2P', value: '2P' },
+          { key: 'amps', label: 'Intensidad', placeholder: '16A', value: '16A' },
+          { key: 'circuit', label: 'Nombre del circuito', placeholder: 'C1 Iluminación', value: 'Circuito', wide: true },
+          { key: 'distance', label: 'Distancia', placeholder: '15 m', value: '15 m', wide: true }
+        ]
+      },
+      TIERRA: {
+        title: 'Editar toma de tierra',
+        fields: [
+          { key: 'section', label: 'Sección del conductor', placeholder: 'PE 16mm²', value: 'PE 16mm²', wide: true }
+        ]
+      }
+    };
+
     function normalizeTextLines(text) {
       return String(text || '')
         .split(/\r?\n|\|/)
@@ -1003,36 +1037,76 @@
         .filter(Boolean);
     }
 
+    function valuesFromElement(el) {
+      const lines = normalizeTextLines(el.text);
+      if (el.type === 'ACOMETIDA') {
+        const cable = lines[0] || '4x16mm²';
+        const match = cable.match(/^(\d+)\s*[xX×]\s*(.+)$/);
+        return {
+          poles: match ? match[1] : '4',
+          section: match ? match[2] : '16mm²',
+          distance: (lines[1] || '15 m').replace(/^\(|\)$/g, '')
+        };
+      }
+      if (el.type === 'IGA') return { poles: lines[0], amps: lines[1] };
+      if (el.type === 'DIFERENCIAL') return { poles: lines[0], amps: lines[1], sensitivity: lines[2] };
+      if (el.type === 'SOBRETENSION') return { spdType: lines[0], uc: lines[1], imax: lines[2] };
+      if (el.type === 'PIA') {
+        return {
+          poles: lines[0],
+          amps: lines[1],
+          circuit: lines[2],
+          distance: (lines[3] || '').replace(/^\(|\)$/g, '')
+        };
+      }
+      if (el.type === 'TIERRA') return { section: lines[0] };
+      return {};
+    }
+
+    function renderStructuredFields(schema, values) {
+      const container = document.getElementById('structuredEditor');
+      container.innerHTML = '';
+      schema.fields.forEach(field => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'editor-field' + (field.wide ? ' wide' : '');
+        const label = document.createElement('label');
+        label.htmlFor = 'field-' + field.key;
+        label.textContent = field.label;
+        const input = document.createElement('input');
+        input.id = 'field-' + field.key;
+        input.type = 'text';
+        input.placeholder = field.placeholder;
+        input.value = values[field.key] || field.value;
+        wrapper.append(label, input);
+        container.appendChild(wrapper);
+      });
+    }
+
     function openTextEditor(el) {
       editingElement = el;
       const modal = document.getElementById('textEditor');
       const generic = document.getElementById('genericEditor');
-      const pia = document.getElementById('piaEditor');
-      const isPia = el.type === 'PIA';
+      const structured = document.getElementById('structuredEditor');
+      const schema = symbolEditorSchemas[el.type];
+      generic.hidden = Boolean(schema);
+      structured.hidden = !schema;
 
-      generic.hidden = isPia;
-      pia.hidden = !isPia;
-      document.getElementById('editorTitle').textContent =
-        isPia ? 'Editar magnetotérmico' : 'Editar texto del elemento';
-      document.getElementById('editorHelp').textContent =
-        isPia
-          ? 'La información se colocará automáticamente en su zona correspondiente.'
-          : 'Pulsa Enter para crear una segunda o tercera línea.';
-
-      if (isPia) {
-        const lines = normalizeTextLines(el.text);
-        document.getElementById('piaPoles').value = lines[0] || '2P';
-        document.getElementById('piaAmps').value = lines[1] || '16A';
-        document.getElementById('piaCircuit').value = lines[2] || 'Circuito';
-        document.getElementById('piaDistance').value = (lines[3] || '15 m').replace(/^\(|\)$/g, '');
+      if (schema) {
+        document.getElementById('editorTitle').textContent = schema.title;
+        document.getElementById('editorHelp').textContent =
+          'Cada dato se colocará automáticamente en su zona correspondiente.';
+        renderStructuredFields(schema, valuesFromElement(el));
       } else {
-        document.getElementById('elementText').value =
-          normalizeTextLines(el.text).join('\n');
+        document.getElementById('editorTitle').textContent = 'Editar texto';
+        document.getElementById('editorHelp').textContent =
+          'Pulsa Enter para crear una segunda o tercera línea.';
+        document.getElementById('elementText').value = normalizeTextLines(el.text).join('\n');
       }
 
       modal.hidden = false;
       requestAnimationFrame(() => {
-        (isPia ? document.getElementById('piaPoles') : document.getElementById('elementText')).focus();
+        const firstInput = schema ? structured.querySelector('input') : document.getElementById('elementText');
+        if (firstInput) firstInput.focus();
       });
     }
 
@@ -1041,16 +1115,31 @@
       editingElement = null;
     }
 
+    function readField(key, fallback) {
+      const input = document.getElementById('field-' + key);
+      return input && input.value.trim() ? input.value.trim() : fallback;
+    }
+
     function saveTextEditor() {
       if (!editingElement) return;
+      const type = editingElement.type;
 
-      if (editingElement.type === 'PIA') {
-        const poles = document.getElementById('piaPoles').value.trim() || '2P';
-        const amps = document.getElementById('piaAmps').value.trim() || '16A';
-        const circuit = document.getElementById('piaCircuit').value.trim() || 'Circuito';
-        const rawDistance = document.getElementById('piaDistance').value.trim() || '15 m';
-        const distance = '(' + rawDistance.replace(/^\(|\)$/g, '') + ')';
-        editingElement.text = [poles, amps, circuit, distance].join('\n');
+      if (type === 'ACOMETIDA') {
+        const poles = readField('poles', '4').replace(/[^0-9]/g, '') || '4';
+        const section = readField('section', '16mm²');
+        const distance = readField('distance', '15 m').replace(/^\(|\)$/g, '');
+        editingElement.text = poles + 'x' + section + '\n(' + distance + ')';
+      } else if (type === 'IGA') {
+        editingElement.text = [readField('poles', '4P'), readField('amps', '40A')].join('\n');
+      } else if (type === 'DIFERENCIAL') {
+        editingElement.text = [readField('poles', '4P'), readField('amps', '40A'), readField('sensitivity', '30mA')].join('\n');
+      } else if (type === 'SOBRETENSION') {
+        editingElement.text = [readField('spdType', 'SPD T2'), readField('uc', 'Uc 275V'), readField('imax', 'Imax 40kA')].join('\n');
+      } else if (type === 'PIA') {
+        const distance = readField('distance', '15 m').replace(/^\(|\)$/g, '');
+        editingElement.text = [readField('poles', '2P'), readField('amps', '16A'), readField('circuit', 'Circuito'), '(' + distance + ')'].join('\n');
+      } else if (type === 'TIERRA') {
+        editingElement.text = readField('section', 'PE 16mm²');
       } else {
         editingElement.text = document.getElementById('elementText').value.trim();
       }
