@@ -264,6 +264,22 @@
     .validation-group.warning h3 { color: #a56b08; }
     .validation-group ul { display: grid; gap: 7px; padding-left: 18px; }
     .validation-group li { color: #40515b; font-size: 0.72rem; line-height: 1.4; }
+    .connection-options { display: grid; gap: 8px; margin-top: 16px; }
+    .connection-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 44px;
+      padding: 9px 11px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: #334650;
+      background: #f8fafb;
+      font-size: 0.76rem;
+      cursor: pointer;
+    }
+    .connection-option:hover { border-color: #8fc3c9; background: #f0f8f9; }
+    .connection-option input { accent-color: var(--brand); }
 
     @media (max-width: 900px) {
       header { min-height: 56px; padding: 7px 10px; }
@@ -419,6 +435,18 @@
     </div>
   </div>
 
+  <div class="editor-backdrop" id="connectionPicker" hidden>
+    <div class="editor-dialog" role="dialog" aria-modal="true" aria-labelledby="connectionPickerTitle">
+      <h2 id="connectionPickerTitle">Seleccionar conexión</h2>
+      <p class="editor-help" id="connectionPickerHelp"></p>
+      <div class="connection-options" id="connectionOptions"></div>
+      <div class="editor-actions">
+        <button class="btn-hdr" type="button" onclick="closeConnectionPicker()">Cancelar</button>
+        <button class="btn-hdr btn-primary" type="button" onclick="confirmConnectionPicker()">Conectar elemento</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const canvas = document.getElementById('cadCanvas');
     const ctx = canvas.getContext('2d');
@@ -554,14 +582,14 @@
       return { parent: best, distance: bestDistance };
     }
 
-    function getAutomaticPlacement(type) {
+    function getAutomaticPlacement(type, forcedParent = null) {
       if (type === 'ACOMETIDA') {
         return { x: 80, y: 50, w: 220, h: 40, parent: null };
       }
 
       const allowed = connectionRules[type] || [];
       const candidates = elements.filter(el => allowed.includes(el.type));
-      const parent = candidates.length ? candidates[candidates.length - 1] : null;
+      const parent = forcedParent || (candidates.length ? candidates[candidates.length - 1] : null);
 
       if (!parent) {
         const sameType = elements.filter(el => el.type === type).length;
@@ -630,8 +658,126 @@
       return { x: output.x, y: output.y + 80, w: 100, h: 100, parent };
     }
 
+    let pendingConnection = null;
+
+    function elementConnectionLabel(el, index) {
+      const lines = normalizeTextLines(el.text);
+      const typeNames = {
+        IGA: 'IGA',
+        GENERAL_FILA: 'General de fila',
+        DIFERENCIAL: 'Diferencial'
+      };
+      const details = lines.slice(0, 3).join(' · ');
+      return (typeNames[el.type] || el.type) + ' ' + (index + 1) +
+        (details ? ' — ' + details : '');
+    }
+
+    function openConnectionPicker(type, candidates, mode, parent = null) {
+      pendingConnection = { type, candidates, mode, parent };
+      const options = document.getElementById('connectionOptions');
+      options.innerHTML = '';
+      document.getElementById('connectionPickerTitle').textContent =
+        type === 'PIA' ? 'Elegir diferencial' : 'Intercalar general de fila';
+      document.getElementById('connectionPickerHelp').textContent =
+        type === 'PIA'
+          ? 'Selecciona el diferencial que alimentará el nuevo PIA.'
+          : 'Selecciona los diferenciales que quedarán protegidos por el nuevo general de fila.';
+
+      candidates.forEach((candidate, index) => {
+        const label = document.createElement('label');
+        label.className = 'connection-option';
+        const input = document.createElement('input');
+        input.type = mode === 'single' ? 'radio' : 'checkbox';
+        input.name = 'connection-target';
+        input.value = String(candidate.id);
+        if (mode === 'single' && index === 0) input.checked = true;
+        const text = document.createElement('span');
+        text.textContent = elementConnectionLabel(candidate, index);
+        label.append(input, text);
+        options.appendChild(label);
+      });
+
+      document.getElementById('connectionPicker').hidden = false;
+    }
+
+    function closeConnectionPicker() {
+      document.getElementById('connectionPicker').hidden = true;
+      pendingConnection = null;
+    }
+
+    function confirmConnectionPicker() {
+      if (!pendingConnection) return;
+      const checked = [...document.querySelectorAll(
+        '#connectionOptions input:checked'
+      )];
+      if (!checked.length) return;
+
+      const ids = new Set(checked.map(input => Number(input.value)));
+      const selectedTargets = pendingConnection.candidates.filter(el => ids.has(el.id));
+
+      if (pendingConnection.type === 'PIA') {
+        createElement('PIA', selectedTargets[0]);
+      } else {
+        createElement(
+          'GENERAL_FILA',
+          pendingConnection.parent,
+          selectedTargets.map(el => el.id)
+        );
+      }
+      closeConnectionPicker();
+    }
+
+    document.getElementById('connectionPicker').addEventListener('mousedown', event => {
+      if (event.target.id === 'connectionPicker') closeConnectionPicker();
+    });
+
     function addElement(type) {
-      const placement = getAutomaticPlacement(type);
+      if (type === 'PIA') {
+        const differentials = elements.filter(el => el.type === 'DIFERENCIAL');
+        const selectedDifferential = differentials.find(el => selectedIds.has(el.id));
+
+        if (selectedDifferential) {
+          createElement(type, selectedDifferential);
+          return;
+        }
+        if (differentials.length > 1) {
+          openConnectionPicker(type, differentials, 'single');
+          return;
+        }
+        createElement(type, differentials[0] || null);
+        return;
+      }
+
+      if (type === 'GENERAL_FILA') {
+        const directDifferentials = elements.filter(el => {
+          if (el.type !== 'DIFERENCIAL') return false;
+          const parent = elements.find(candidate => candidate.id === el.parentId);
+          return parent && parent.type === 'IGA';
+        });
+        const selectedDifferentials = directDifferentials.filter(el => selectedIds.has(el.id));
+
+        if (selectedDifferentials.length) {
+          const iga = elements.find(el => el.id === selectedDifferentials[0].parentId);
+          createElement(type, iga, selectedDifferentials.map(el => el.id));
+          return;
+        }
+        if (directDifferentials.length === 1) {
+          const iga = elements.find(el => el.id === directDifferentials[0].parentId);
+          createElement(type, iga, [directDifferentials[0].id]);
+          return;
+        }
+        if (directDifferentials.length > 1) {
+          const iga = elements.find(el => el.id === directDifferentials[0].parentId);
+          openConnectionPicker(type, directDifferentials, 'multiple', iga);
+          return;
+        }
+      }
+
+      createElement(type);
+    }
+
+    function createElement(type, forcedParent = null, downstreamIds = []) {
+      const placement = getAutomaticPlacement(type, forcedParent);
       let elem = {
         id: Date.now() + Math.random(),
         type: type,
@@ -643,6 +789,16 @@
         text: getDefaultText(type)
       };
       elements.push(elem);
+
+      if (type === 'GENERAL_FILA' && downstreamIds.length) {
+        const downstreamSet = new Set(downstreamIds);
+        elements.forEach(el => {
+          if (downstreamSet.has(el.id) && el.type === 'DIFERENCIAL') {
+            el.parentId = elem.id;
+          }
+        });
+      }
+
       selectedElement = elem;
       selectedIds = new Set([elem.id]);
       fitViewToContent();
