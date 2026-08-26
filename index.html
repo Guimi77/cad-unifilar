@@ -195,6 +195,11 @@
     }
     .viewport-controls button:hover { color: var(--brand-dark); background: #eaf5f6; }
     .viewport-controls .zoom-value { min-width: 52px; color: var(--muted); font-size: 0.68rem; }
+    .mobile-only-control { display: none; }
+    .viewport-controls button.is-active {
+      color: #fff;
+      background: var(--brand);
+    }
     .canvas-hint {
       position: absolute;
       left: 16px;
@@ -369,6 +374,7 @@
         padding: 3px;
       }
       .viewport-controls button { min-width: 30px; height: 29px; }
+      .viewport-controls .mobile-only-control { display: inline-grid; place-items: center; }
       .viewport-controls .zoom-value { min-width: 46px; }
     }
 
@@ -445,6 +451,22 @@
         <button type="button" class="zoom-value" id="zoomValue" onclick="resetView()" title="Restablecer vista">100%</button>
         <button type="button" onclick="zoomIn()" aria-label="Acercar">+</button>
         <button type="button" onclick="resetView()" aria-label="Centrar vista" title="Centrar vista">⌂</button>
+        <button
+          type="button"
+          class="mobile-only-control"
+          id="multiSelectToggle"
+          onclick="toggleMobileMultiSelect()"
+          aria-pressed="false"
+          aria-label="Selección múltiple"
+          title="Selección múltiple"
+        >☑</button>
+        <button
+          type="button"
+          class="mobile-only-control"
+          onclick="deleteSelected()"
+          aria-label="Eliminar selección"
+          title="Eliminar selección"
+        >⌫</button>
       </div>
     </div>
   </div>
@@ -549,6 +571,7 @@
     let selectionBaseIds = new Set();
     let dragStartWorld = null;
     let groupOrigins = new Map();
+    let mobileMultiSelect = false;
     let touchMode = null;
     let touchStartDistance = 0;
     let touchStartZoom = 1;
@@ -607,6 +630,14 @@
 
     function resetView() {
       fitViewToContent();
+    }
+
+    function toggleMobileMultiSelect() {
+      mobileMultiSelect = !mobileMultiSelect;
+      const button = document.getElementById('multiSelectToggle');
+      button.classList.toggle('is-active', mobileMultiSelect);
+      button.setAttribute('aria-pressed', String(mobileMultiSelect));
+      canvas.style.cursor = mobileMultiSelect ? 'crosshair' : 'default';
     }
     window.addEventListener('resize', resizeCanvas);
 
@@ -1459,6 +1490,23 @@
       }
 
       if (hitElement) {
+        const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
+
+        if (mobileMultiSelect && coarsePointer) {
+          if (!selectedIds.has(hitElement.id)) selectedIds.add(hitElement.id);
+          selectedElement = hitElement;
+          isDragging = true;
+          dragStartWorld = { x: mouseX, y: mouseY };
+          groupOrigins = new Map(
+            elements
+              .filter(el => selectedIds.has(el.id))
+              .map(el => [el.id, { x: el.x, y: el.y }])
+          );
+          canvas.style.cursor = 'move';
+          draw();
+          return;
+        }
+
         if (e.shiftKey) {
           if (selectedIds.has(hitElement.id)) {
             selectedIds.delete(hitElement.id);
@@ -1489,7 +1537,8 @@
       }
 
       // En pantallas táctiles, arrastrar una zona vacía desplaza el lienzo.
-      if (window.matchMedia('(pointer: coarse)').matches && !e.shiftKey) {
+      if (window.matchMedia('(pointer: coarse)').matches &&
+          !mobileMultiSelect && !e.shiftKey) {
         isPanning = true;
         panStartX = e.clientX;
         panStartY = e.clientY;
@@ -1594,7 +1643,11 @@
       isResizing = false;
       dragStartWorld = null;
       groupOrigins.clear();
-      if (!isPanning) canvas.style.cursor = spacePressed ? 'grab' : 'default';
+      if (!isPanning) {
+        canvas.style.cursor = mobileMultiSelect
+          ? 'crosshair'
+          : (spacePressed ? 'grab' : 'default');
+      }
       draw();
     });
 
