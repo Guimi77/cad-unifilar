@@ -198,6 +198,7 @@
       <button class="btn-lib" onclick="addElement('ACOMETIDA')">Acometida</button>
       <button class="btn-lib" onclick="addElement('IGA')">IGA / ICP</button>
       <button class="btn-lib" onclick="addElement('DIFERENCIAL')">Diferencial (ID)</button>
+      <button class="btn-lib" onclick="addElement('SOBRETENSION')">Protección sobretensiones</button>
       <button class="btn-lib" onclick="addElement('PIA')">Magnetotérmico (PIA)</button>
       <button class="btn-lib" onclick="addElement('TIERRA')">Toma de tierra</button>
       <button class="btn-lib" onclick="addElement('TEXTO')">Nota de texto</button>
@@ -249,12 +250,13 @@
     const connectionRules = {
       IGA: ['ACOMETIDA'],
       DIFERENCIAL: ['IGA', 'DIFERENCIAL'],
+      SOBRETENSION: ['IGA'],
       PIA: ['DIFERENCIAL']
     };
 
     function getOutputPort(el) {
       if (el.type === 'ACOMETIDA') {
-        return { x: el.x + el.w / 2, y: el.y + 10 };
+        return { x: el.x + el.w, y: el.y + 10 };
       }
       return { x: el.x, y: el.y + 60 };
     }
@@ -302,6 +304,10 @@
       }
 
       const output = getOutputPort(parent);
+      if (type === 'SOBRETENSION') {
+        return { x: output.x + 120, y: output.y + 80, w: 100, h: 100, parent };
+      }
+
       if (type === 'PIA') {
         const siblings = elements.filter(el => el.type === 'PIA' && el.parentId === parent.id).length;
         const offset = siblings === 0 ? 0 : Math.ceil(siblings / 2) * 80 * (siblings % 2 ? 1 : -1);
@@ -333,6 +339,7 @@
         case 'ACOMETIDA': return '4x16mm² (15mts)';
         case 'IGA': return 'Mag.|40A';
         case 'DIFERENCIAL': return 'Dif.|40A|30mA';
+        case 'SOBRETENSION': return 'SPD T2|Uc 275V|Imax 40kA';
         case 'PIA': return 'Mag.|16A';
         case 'TEXTO': return 'Nota técnica';
         default: return '';
@@ -406,7 +413,7 @@
         else if (el.type === 'ACOMETIDA') {
           drawAcometida(el, isExporting);
         }
-        else if (['IGA', 'DIFERENCIAL', 'PIA', 'TIERRA'].includes(el.type)) {
+        else if (['IGA', 'DIFERENCIAL', 'SOBRETENSION', 'PIA', 'TIERRA'].includes(el.type)) {
           drawSymbol(el.type, el.text);
         }
         else if (el.type === 'TEXTO') {
@@ -551,6 +558,36 @@
 
         ctx.font = 'bold 8px "Courier New"';
         ctx.fillText('T', 17, 28);
+      }
+      else if (type === 'SOBRETENSION') {
+        // Protector contra sobretensiones (SPD) en derivación.
+        ctx.beginPath();
+        ctx.moveTo(0, 15);
+        ctx.lineTo(0, 20);
+        ctx.stroke();
+
+        ctx.strokeRect(-12, 20, 24, 25);
+
+        // Símbolo convencional del descargador/varistor.
+        ctx.beginPath();
+        ctx.moveTo(-7, 39);
+        ctx.lineTo(7, 26);
+        ctx.moveTo(3, 26);
+        ctx.lineTo(7, 26);
+        ctx.lineTo(7, 30);
+        ctx.stroke();
+
+        // Descarga a tierra integrada.
+        ctx.beginPath();
+        ctx.moveTo(0, 45);
+        ctx.lineTo(0, 51);
+        ctx.moveTo(-9, 51);
+        ctx.lineTo(9, 51);
+        ctx.moveTo(-6, 55);
+        ctx.lineTo(6, 55);
+        ctx.moveTo(-3, 59);
+        ctx.lineTo(3, 59);
+        ctx.stroke();
       }
       else if (type === 'TIERRA') {
         ctx.beginPath();
@@ -728,6 +765,7 @@
       const acometidas = elements.filter(el => el.type === 'ACOMETIDA');
       const igas = elements.filter(el => el.type === 'IGA');
       const diferenciales = elements.filter(el => el.type === 'DIFERENCIAL');
+      const sobretensiones = elements.filter(el => el.type === 'SOBRETENSION');
       const pias = elements.filter(el => el.type === 'PIA');
 
       // Regla de coherencia del documento: un esquema de suministro simple
@@ -738,6 +776,19 @@
         errores.push('Hay ' + acometidas.length + ' acometidas. Este esquema admite una única acometida.');
       } else {
         correctos.push('Acometida única.');
+      }
+
+      if (sobretensiones.length === 0) {
+        avisos.push('No se ha representado protección contra sobretensiones; comprobar su necesidad según ITC-BT-23.');
+      } else {
+        sobretensiones.forEach((spd, index) => {
+          const parent = elements.find(el => el.id === spd.parentId);
+          if (!parent || parent.type !== 'IGA') {
+            errores.push('SPD ' + (index + 1) + ': debe conectarse en derivación aguas abajo del IGA.');
+          } else {
+            correctos.push('SPD ' + (index + 1) + ' conectado después del IGA.');
+          }
+        });
       }
 
       if (diferenciales.length === 0 && pias.length > 0) {
