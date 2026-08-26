@@ -64,6 +64,9 @@
     const container = document.getElementById('container');
 
     const GRID = 20;
+    const RENDER_SCALE = Math.max(2, window.devicePixelRatio || 1);
+    let viewWidth = 0;
+    let viewHeight = 0;
     let elements = [];
     let cajetin = {
       x: 0, y: 20, width: 220, height: 60,
@@ -77,9 +80,18 @@
     let isResizing = false;
 
     function resizeCanvas() {
-      canvas.width = container.clientWidth;
-      canvas.height = container.clientHeight;
-      cajetin.x = canvas.width - cajetin.width - 20;
+      viewWidth = container.clientWidth;
+      viewHeight = container.clientHeight;
+
+      // El tamaño CSS conserva las coordenadas de trabajo; el bitmap interno
+      // se renderiza a mayor escala para obtener texto y líneas nítidos.
+      canvas.style.width = viewWidth + 'px';
+      canvas.style.height = viewHeight + 'px';
+      canvas.width = Math.round(viewWidth * RENDER_SCALE);
+      canvas.height = Math.round(viewHeight * RENDER_SCALE);
+      ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
+
+      cajetin.x = viewWidth - cajetin.width - 20;
       draw();
     }
     window.addEventListener('resize', resizeCanvas);
@@ -126,15 +138,15 @@
     });
 
     function draw(isExporting = false) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.clearRect(0, 0, viewWidth, viewHeight);
 
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillRect(0, 0, viewWidth, viewHeight);
 
       if (!isExporting) {
         ctx.fillStyle = '#bbb';
-        for (let x = 0; x < canvas.width; x += GRID) {
-          for (let y = 0; y < canvas.height; y += GRID) {
+        for (let x = 0; x < viewWidth; x += GRID) {
+          for (let y = 0; y < viewHeight; y += GRID) {
             ctx.fillRect(x, y, 1.5, 1.5);
           }
         }
