@@ -686,7 +686,7 @@
 
     function getAutomaticPlacement(type, forcedParent = null) {
       if (type === 'ACOMETIDA') {
-        return { x: 80, y: 50, w: 220, h: 40, parent: null };
+        return { x: 80, y: 120, w: 220, h: 40, parent: null };
       }
 
       const allowed = connectionRules[type] || [];
@@ -849,6 +849,16 @@
     });
 
     function addElement(type) {
+      if (type === 'ACOMETIDA') {
+        const existingSupply = elements.find(el => el.type === 'ACOMETIDA');
+        if (existingSupply) {
+          selectedElement = existingSupply;
+          selectedIds = new Set([existingSupply.id]);
+          fitViewToContent();
+          return;
+        }
+      }
+
       if (type === 'DIFERENCIAL') {
         const selectedProtection = elements.find(el =>
           selectedIds.has(el.id) && ['IGA', 'GENERAL_FILA'].includes(el.type)
@@ -958,7 +968,9 @@
         selectedElement = elem;
         selectedIds = new Set([elem.id]);
       }
-      closeMobileLibrary();
+      // Mantiene abierta la biblioteca cuando el elemento aguas arriba
+      // sigue seleccionado para añadir varios hijos consecutivos.
+      if (!preserveParentSelection) closeMobileLibrary();
       fitViewToContent();
     }
 
@@ -981,7 +993,12 @@
 
     function deleteSelected() {
       if (selectedIds.size === 0) return;
-      const deletedIds = new Set(selectedIds);
+      const deletedIds = new Set(
+        [...selectedIds].filter(id => {
+          const el = elements.find(candidate => candidate.id === id);
+          return el && el.type !== 'ACOMETIDA';
+        })
+      );
       elements = elements.filter(el => !deletedIds.has(el.id));
       elements.forEach(el => {
         if (deletedIds.has(el.parentId)) el.parentId = null;
@@ -2297,6 +2314,9 @@
     }
 
     resizeCanvas();
+    if (!elements.some(el => el.type === 'ACOMETIDA')) {
+      createElement('ACOMETIDA');
+    }
   </script>
 </body>
 </html>
