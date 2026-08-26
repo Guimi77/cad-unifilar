@@ -156,6 +156,51 @@
     }
     canvas { display: block; background: #fff; }
 
+    .editor-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: rgba(15, 28, 36, 0.48);
+      backdrop-filter: blur(4px);
+    }
+    .editor-backdrop[hidden] { display: none; }
+    .editor-dialog {
+      width: min(460px, 100%);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      border-radius: 18px;
+      padding: 22px;
+      background: #fff;
+      box-shadow: 0 24px 70px rgba(15, 28, 36, 0.24);
+    }
+    .editor-dialog h2 { font-size: 1rem; letter-spacing: -0.02em; }
+    .editor-help { margin: 6px 0 18px; color: var(--muted); font-size: 0.72rem; line-height: 1.4; }
+    .editor-field { display: grid; gap: 6px; margin-top: 12px; }
+    .editor-field label { color: #4e606b; font-size: 0.68rem; font-weight: 750; }
+    .editor-field input,
+    .editor-field textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 11px;
+      color: var(--ink);
+      background: #fbfcfd;
+      font: 500 0.82rem/1.45 Inter, ui-sans-serif, system-ui, sans-serif;
+      outline: none;
+      transition: border-color 140ms ease, box-shadow 140ms ease;
+    }
+    .editor-field textarea { min-height: 130px; resize: vertical; }
+    .editor-field input:focus,
+    .editor-field textarea:focus {
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(8, 126, 139, 0.12);
+    }
+    .pia-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+    .pia-fields .wide { grid-column: 1 / -1; }
+    .editor-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
     @media (max-width: 900px) {
       header { padding: 8px 12px; align-items: flex-start; }
       .brand-copy span { display: none; }
@@ -209,6 +254,42 @@
     </div>
   </div>
 
+  <div class="editor-backdrop" id="textEditor" hidden>
+    <div class="editor-dialog" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
+      <h2 id="editorTitle">Editar elemento</h2>
+      <p class="editor-help" id="editorHelp">Pulsa Enter para crear una nueva línea.</p>
+
+      <div id="genericEditor" class="editor-field">
+        <label for="elementText">Texto del símbolo</label>
+        <textarea id="elementText"></textarea>
+      </div>
+
+      <div id="piaEditor" class="pia-fields" hidden>
+        <div class="editor-field">
+          <label for="piaPoles">Número de polos</label>
+          <input id="piaPoles" type="text" placeholder="2P">
+        </div>
+        <div class="editor-field">
+          <label for="piaAmps">Intensidad</label>
+          <input id="piaAmps" type="text" placeholder="16A">
+        </div>
+        <div class="editor-field wide">
+          <label for="piaCircuit">Nombre del circuito</label>
+          <input id="piaCircuit" type="text" placeholder="Iluminación">
+        </div>
+        <div class="editor-field wide">
+          <label for="piaDistance">Distancia</label>
+          <input id="piaDistance" type="text" placeholder="15 m">
+        </div>
+      </div>
+
+      <div class="editor-actions">
+        <button class="btn-hdr" type="button" onclick="closeTextEditor()">Cancelar</button>
+        <button class="btn-hdr btn-primary" type="button" onclick="saveTextEditor()">Guardar cambios</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const canvas = document.getElementById('cadCanvas');
     const ctx = canvas.getContext('2d');
@@ -258,7 +339,7 @@
       if (el.type === 'ACOMETIDA') {
         return { x: el.x + el.w, y: el.y + 10 };
       }
-      return { x: el.x, y: el.y + 60 };
+      return { x: el.x, y: el.y + (el.type === 'PIA' ? 100 : 60) };
     }
 
     function getInputPort(el) {
@@ -340,7 +421,10 @@
         case 'IGA': return 'Mag.|40A';
         case 'DIFERENCIAL': return 'Dif.|40A|30mA';
         case 'SOBRETENSION': return 'SPD T2|Uc 275V|Imax 40kA';
-        case 'PIA': return 'Mag.|16A';
+        case 'PIA': {
+          const number = elements.filter(el => el.type === 'PIA').length + 1;
+          return '2P\n16A\nC' + number + ' Circuito\n(15 m)';
+        }
         case 'TEXTO': return 'Nota técnica';
         default: return '';
       }
@@ -428,6 +512,8 @@
           ctx.setLineDash([2, 2]);
           if (el.type === 'ACOMETIDA') {
             ctx.strokeRect(-10, -25, el.w + 20, 55);
+          } else if (el.type === 'PIA') {
+            ctx.strokeRect(-48, -10, 96, 142);
           } else {
             ctx.strokeRect(-10, -10, 40, 55);
           }
@@ -521,13 +607,13 @@
       ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 15); ctx.stroke();
 
       if (type === 'IGA' || type === 'PIA') {
+        const outputY = type === 'PIA' ? 100 : 60;
         ctx.beginPath();
         ctx.moveTo(0, 15); ctx.lineTo(8, 27);
-        ctx.moveTo(0, 42); ctx.lineTo(0, 60);
+        ctx.moveTo(0, 42); ctx.lineTo(0, outputY);
         ctx.stroke();
         ctx.beginPath(); ctx.arc(0, 15, 2, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.arc(0, 42, 2, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.moveTo(0, 42); ctx.lineTo(0, 60); ctx.stroke();
       }
       else if (type === 'DIFERENCIAL') {
         // Interruptor diferencial unifilar IEC/UNE:
@@ -600,25 +686,42 @@
 
       if (text && type !== 'TIERRA') {
         ctx.font = 'bold 9px "Courier New"';
-        let lines = text.split('|');
-        if (lines.length === 1) {
-          lines = text.split(' ');
+        const lines = normalizeTextLines(text);
+
+        if (type === 'PIA') {
+          const poles = lines[0] || '2P';
+          const amps = lines[1] || '16A';
+          const circuit = lines[2] || 'Circuito';
+          const rawDistance = lines[3] || '(15 m)';
+          const distance = /^\(.*\)$/.test(rawDistance) ? rawDistance : '(' + rawDistance + ')';
+
+          // Polos e intensidad a la derecha del símbolo.
+          ctx.fillStyle = '#000';
+          ctx.textAlign = 'left';
+          ctx.fillText(poles, 20, 29);
+          ctx.fillText(amps, 20, 40);
+
+          // Nombre y distancia bajo la salida alargada.
+          ctx.textAlign = 'center';
+          ctx.fillText(circuit, 0, 114);
+          ctx.font = '8px "Courier New"';
+          ctx.fillText(distance, 0, 125);
+          ctx.textAlign = 'left';
+        } else {
+          let maxWidth = 0;
+          lines.forEach(line => {
+            maxWidth = Math.max(maxWidth, ctx.measureText(line).width);
+          });
+
+          const labelX = type === 'DIFERENCIAL' ? 28 : 17;
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(labelX, 20, maxWidth + 6, (lines.length * 11) + 4);
+
+          ctx.fillStyle = '#000000';
+          lines.forEach((line, index) => {
+            ctx.fillText(line, labelX + 3, 31 + (index * 11));
+          });
         }
-        
-        let maxWidth = 0;
-        lines.forEach(l => {
-          let m = ctx.measureText(l);
-          if (m.width > maxWidth) maxWidth = m.width;
-        });
-
-        const labelX = type === 'DIFERENCIAL' ? 28 : 17;
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(labelX, 20, maxWidth + 6, (lines.length * 11) + 4);
-
-        ctx.fillStyle = '#000000';
-        lines.forEach((line, index) => {
-          ctx.fillText(line, labelX + 3, 31 + (index * 11));
-        });
       }
     }
 
@@ -738,11 +841,7 @@
         let hitBoxW = el.w || 30;
         let hitBoxH = el.h || 45;
         if (mouseX >= el.x - 10 && mouseX <= el.x + hitBoxW && mouseY >= el.y - 10 && mouseY <= el.y + hitBoxH) {
-          let val = prompt('Editar texto (usa | para saltos de línea):', el.text);
-          if (val !== null) {
-            el.text = val;
-            draw();
-          }
+          openTextEditor(el);
         }
       });
     });
@@ -894,6 +993,81 @@
       lineas.push('Las comprobaciones se basan en las conexiones eléctricas reales del esquema.');
       alert(lineas.join('\n'));
     }
+
+    let editingElement = null;
+
+    function normalizeTextLines(text) {
+      return String(text || '')
+        .split(/\r?\n|\|/)
+        .map(line => line.trim())
+        .filter(Boolean);
+    }
+
+    function openTextEditor(el) {
+      editingElement = el;
+      const modal = document.getElementById('textEditor');
+      const generic = document.getElementById('genericEditor');
+      const pia = document.getElementById('piaEditor');
+      const isPia = el.type === 'PIA';
+
+      generic.hidden = isPia;
+      pia.hidden = !isPia;
+      document.getElementById('editorTitle').textContent =
+        isPia ? 'Editar magnetotérmico' : 'Editar texto del elemento';
+      document.getElementById('editorHelp').textContent =
+        isPia
+          ? 'La información se colocará automáticamente en su zona correspondiente.'
+          : 'Pulsa Enter para crear una segunda o tercera línea.';
+
+      if (isPia) {
+        const lines = normalizeTextLines(el.text);
+        document.getElementById('piaPoles').value = lines[0] || '2P';
+        document.getElementById('piaAmps').value = lines[1] || '16A';
+        document.getElementById('piaCircuit').value = lines[2] || 'Circuito';
+        document.getElementById('piaDistance').value = (lines[3] || '15 m').replace(/^\(|\)$/g, '');
+      } else {
+        document.getElementById('elementText').value =
+          normalizeTextLines(el.text).join('\n');
+      }
+
+      modal.hidden = false;
+      requestAnimationFrame(() => {
+        (isPia ? document.getElementById('piaPoles') : document.getElementById('elementText')).focus();
+      });
+    }
+
+    function closeTextEditor() {
+      document.getElementById('textEditor').hidden = true;
+      editingElement = null;
+    }
+
+    function saveTextEditor() {
+      if (!editingElement) return;
+
+      if (editingElement.type === 'PIA') {
+        const poles = document.getElementById('piaPoles').value.trim() || '2P';
+        const amps = document.getElementById('piaAmps').value.trim() || '16A';
+        const circuit = document.getElementById('piaCircuit').value.trim() || 'Circuito';
+        const rawDistance = document.getElementById('piaDistance').value.trim() || '15 m';
+        const distance = '(' + rawDistance.replace(/^\(|\)$/g, '') + ')';
+        editingElement.text = [poles, amps, circuit, distance].join('\n');
+      } else {
+        editingElement.text = document.getElementById('elementText').value.trim();
+      }
+
+      document.getElementById('textEditor').hidden = true;
+      editingElement = null;
+      draw();
+    }
+
+    document.getElementById('textEditor').addEventListener('mousedown', event => {
+      if (event.target.id === 'textEditor') closeTextEditor();
+    });
+
+    document.getElementById('textEditor').addEventListener('keydown', event => {
+      if (event.key === 'Escape') closeTextEditor();
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') saveTextEditor();
+    });
 
     function editarCajetin() {
       let t = prompt('Título del Cuadro:', cajetin.titulo);
