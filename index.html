@@ -321,6 +321,28 @@
     </div>
   </div>
 
+  <div class="editor-backdrop" id="cajetinEditor" hidden>
+    <div class="editor-dialog" role="dialog" aria-modal="true" aria-labelledby="cajetinEditorTitle">
+      <h2 id="cajetinEditorTitle">Editar cajetín</h2>
+      <p class="editor-help">Estos datos aparecerán en el cajetín del esquema exportado.</p>
+
+      <div class="editor-field">
+        <label for="cajetinNombre">Nombre del cuadro</label>
+        <input id="cajetinNombre" type="text" placeholder="Cuadro principal">
+      </div>
+
+      <div class="editor-field">
+        <label for="cajetinDireccion">Dirección</label>
+        <input id="cajetinDireccion" type="text" placeholder="Dirección de la instalación">
+      </div>
+
+      <div class="editor-actions">
+        <button class="btn-hdr" type="button" onclick="closeCajetinEditor()">Cancelar</button>
+        <button class="btn-hdr btn-primary" type="button" onclick="saveCajetinEditor()">Guardar cambios</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const canvas = document.getElementById('cadCanvas');
     const ctx = canvas.getContext('2d');
@@ -1328,12 +1350,33 @@
     });
 
     function editarCajetin() {
-      let t = prompt('Título del Cuadro:', cajetin.titulo);
-      if (t !== null) cajetin.titulo = t;
-      let d = prompt('Dirección:', cajetin.dir);
-      if (d !== null) cajetin.dir = d;
+      document.getElementById('cajetinNombre').value = cajetin.titulo;
+      document.getElementById('cajetinDireccion').value = cajetin.dir;
+      document.getElementById('cajetinEditor').hidden = false;
+      requestAnimationFrame(() => document.getElementById('cajetinNombre').focus());
+    }
+
+    function closeCajetinEditor() {
+      document.getElementById('cajetinEditor').hidden = true;
+    }
+
+    function saveCajetinEditor() {
+      const nombre = document.getElementById('cajetinNombre').value.trim();
+      const direccion = document.getElementById('cajetinDireccion').value.trim();
+      cajetin.titulo = nombre || 'Cuadro Principal';
+      cajetin.dir = direccion || 'Sin dirección';
+      closeCajetinEditor();
       draw();
     }
+
+    document.getElementById('cajetinEditor').addEventListener('mousedown', event => {
+      if (event.target.id === 'cajetinEditor') closeCajetinEditor();
+    });
+
+    document.getElementById('cajetinEditor').addEventListener('keydown', event => {
+      if (event.key === 'Escape') closeCajetinEditor();
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') saveCajetinEditor();
+    });
 
     function exportarPNG() {
       draw(true);
