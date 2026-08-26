@@ -314,7 +314,7 @@
 
     const connectionRules = {
       IGA: ['ACOMETIDA'],
-      DIFERENCIAL: ['IGA', 'DIFERENCIAL'],
+      DIFERENCIAL: ['IGA'],
       SOBRETENSION: ['IGA'],
       PIA: ['DIFERENCIAL']
     };
@@ -369,6 +369,16 @@
       }
 
       const output = getOutputPort(parent);
+      if (type === 'DIFERENCIAL') {
+        const siblings = elements.filter(
+          el => el.type === 'DIFERENCIAL' && el.parentId === parent.id
+        ).length;
+        const offset = siblings === 0
+          ? 0
+          : Math.ceil(siblings / 2) * 120 * (siblings % 2 ? 1 : -1);
+        return { x: output.x + offset, y: output.y + 80, w: 100, h: 100, parent };
+      }
+
       if (type === 'SOBRETENSION') {
         return { x: output.x + 120, y: output.y + 80, w: 100, h: 100, parent };
       }
