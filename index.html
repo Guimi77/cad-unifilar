@@ -369,9 +369,15 @@
     };
 
     let selectedElement = null;
+    let selectedIds = new Set();
     let isDragging = false;
-    let dragOffsetX = 0, dragOffsetY = 0;
     let isResizing = false;
+    let isSelecting = false;
+    let selectionStart = null;
+    let selectionBox = null;
+    let selectionBaseIds = new Set();
+    let dragStartWorld = null;
+    let groupOrigins = new Map();
 
     function resizeCanvas() {
       viewWidth = container.clientWidth;
@@ -536,6 +542,7 @@
       };
       elements.push(elem);
       selectedElement = elem;
+      selectedIds = new Set([elem.id]);
       draw();
     }
 
@@ -556,13 +563,14 @@
     }
 
     function deleteSelected() {
-      if (!selectedElement) return;
-      const deletedId = selectedElement.id;
-      elements = elements.filter(el => el !== selectedElement);
+      if (selectedIds.size === 0) return;
+      const deletedIds = new Set(selectedIds);
+      elements = elements.filter(el => !deletedIds.has(el.id));
       elements.forEach(el => {
-        if (el.parentId === deletedId) el.parentId = null;
+        if (deletedIds.has(el.parentId)) el.parentId = null;
       });
       selectedElement = null;
+      selectedIds.clear();
       draw();
     }
 
@@ -639,7 +647,7 @@
           ctx.fillText(el.text, 0, 0);
         }
 
-        if (!isExporting && selectedElement === el) {
+        if (!isExporting && selectedIds.has(el.id)) {
           ctx.strokeStyle = '#00f';
           ctx.lineWidth = 1;
           ctx.setLineDash([2, 2]);
@@ -655,6 +663,20 @@
 
         ctx.restore();
       });
+
+      if (!isExporting && selectionBox) {
+        const x = Math.min(selectionBox.x1, selectionBox.x2);
+        const y = Math.min(selectionBox.y1, selectionBox.y2);
+        const w = Math.abs(selectionBox.x2 - selectionBox.x1);
+        const h = Math.abs(selectionBox.y2 - selectionBox.y1);
+        ctx.fillStyle = 'rgba(8, 126, 139, 0.10)';
+        ctx.strokeStyle = '#087e8b';
+        ctx.lineWidth = 1 / viewZoom;
+        ctx.setLineDash([6 / viewZoom, 4 / viewZoom]);
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeRect(x, y, w, h);
+        ctx.setLineDash([]);
+      }
 
       drawCajetin();
       ctx.restore();
@@ -898,6 +920,39 @@
       ctx.fillText('DIRECCIÓN: ' + cajetin.dir, cajetin.x + 6, cajetin.y + 43);
     }
 
+    function getElementBounds(el) {
+      if (el.type === 'ACOMETIDA') {
+        return { left: el.x - 10, top: el.y - 25, right: el.x + el.w + 10, bottom: el.y + 30 };
+      }
+      if (el.type === 'PIA') {
+        return { left: el.x - 48, top: el.y - 10, right: el.x + 48, bottom: el.y + 132 };
+      }
+      if (el.type === 'LINEA_H') {
+        return { left: el.x - 8, top: el.y - 8, right: el.x + el.w + 8, bottom: el.y + 8 };
+      }
+      if (el.type === 'LINEA_V') {
+        return { left: el.x - 8, top: el.y - 8, right: el.x + 8, bottom: el.y + el.h + 8 };
+      }
+      const width = el.type === 'TEXTO' ? Math.max(60, el.w || 60) : 90;
+      const height = el.type === 'TEXTO' ? 28 : 70;
+      return { left: el.x - 16, top: el.y - 12, right: el.x + width, bottom: el.y + height };
+    }
+
+    function pointHitsElement(x, y, el) {
+      const bounds = getElementBounds(el);
+      return x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom;
+    }
+
+    function boxIntersectsElement(box, el) {
+      const left = Math.min(box.x1, box.x2);
+      const right = Math.max(box.x1, box.x2);
+      const top = Math.min(box.y1, box.y2);
+      const bottom = Math.max(box.y1, box.y2);
+      const bounds = getElementBounds(el);
+      return bounds.right >= left && bounds.left <= right &&
+             bounds.bottom >= top && bounds.top <= bottom;
+    }
+
     canvas.addEventListener('mousedown', (e) => {
       const rect = canvas.getBoundingClientRect();
 
@@ -911,6 +966,7 @@
         canvas.style.cursor = 'grabbing';
         return;
       }
+
       const screenX = e.clientX - rect.left;
       const screenY = e.clientY - rect.top;
       const point = screenToWorld(screenX, screenY);
@@ -922,35 +978,72 @@
         return;
       }
 
-      selectedElement = null;
+      // Los tiradores de longitud funcionan como selección individual.
       for (let i = elements.length - 1; i >= 0; i--) {
-        let el = elements[i];
-        
-        if ((el.type === 'LINEA_H' || el.type === 'ACOMETIDA') &&
-            Math.abs(mouseX - (el.x + el.w)) < 8 &&
-            Math.abs(mouseY - (el.y + (el.type === 'ACOMETIDA' ? 10 : 0))) < 8) {
-          selectedElement = el;
-          isResizing = true;
-          return;
-        }
-        if (el.type === 'LINEA_V' && Math.abs(mouseX - el.x) < 8 && Math.abs(mouseY - (el.y + el.h)) < 8) {
-          selectedElement = el;
-          isResizing = true;
-          return;
-        }
+        const el = elements[i];
+        const horizontalHandle =
+          (el.type === 'LINEA_H' || el.type === 'ACOMETIDA') &&
+          Math.abs(mouseX - (el.x + el.w)) < 8 &&
+          Math.abs(mouseY - (el.y + (el.type === 'ACOMETIDA' ? 10 : 0))) < 8;
+        const verticalHandle =
+          el.type === 'LINEA_V' &&
+          Math.abs(mouseX - el.x) < 8 &&
+          Math.abs(mouseY - (el.y + el.h)) < 8;
 
-        let hitBoxW = el.w || 30;
-        let hitBoxH = el.h || 45;
-        if (mouseX >= el.x - 10 && mouseX <= el.x + hitBoxW && mouseY >= el.y - 10 && mouseY <= el.y + hitBoxH) {
+        if (horizontalHandle || verticalHandle) {
           selectedElement = el;
-          isDragging = true;
-          dragOffsetX = mouseX - el.x;
-          dragOffsetY = mouseY - el.y;
-          elements.splice(i, 1);
-          elements.push(el);
+          selectedIds = new Set([el.id]);
+          isResizing = true;
+          draw();
+          return;
+        }
+      }
+
+      let hitElement = null;
+      for (let i = elements.length - 1; i >= 0; i--) {
+        if (pointHitsElement(mouseX, mouseY, elements[i])) {
+          hitElement = elements[i];
           break;
         }
       }
+
+      if (hitElement) {
+        if (e.shiftKey) {
+          if (selectedIds.has(hitElement.id)) {
+            selectedIds.delete(hitElement.id);
+            if (selectedElement === hitElement) selectedElement = null;
+          } else {
+            selectedIds.add(hitElement.id);
+            selectedElement = hitElement;
+          }
+          draw();
+          return;
+        }
+
+        if (!selectedIds.has(hitElement.id)) {
+          selectedIds = new Set([hitElement.id]);
+        }
+
+        selectedElement = hitElement;
+        isDragging = true;
+        dragStartWorld = { x: mouseX, y: mouseY };
+        groupOrigins = new Map(
+          elements
+            .filter(el => selectedIds.has(el.id))
+            .map(el => [el.id, { x: el.x, y: el.y }])
+        );
+        canvas.style.cursor = 'move';
+        draw();
+        return;
+      }
+
+      // Arrastrar sobre espacio vacío crea una selección rectangular.
+      if (!e.shiftKey) selectedIds.clear();
+      selectionBaseIds = new Set(selectedIds);
+      selectedElement = null;
+      isSelecting = true;
+      selectionStart = { x: mouseX, y: mouseY };
+      selectionBox = { x1: mouseX, y1: mouseY, x2: mouseX, y2: mouseY };
       draw();
     });
 
@@ -962,7 +1055,6 @@
         return;
       }
 
-      if (!selectedElement) return;
       const rect = canvas.getBoundingClientRect();
       const screenX = e.clientX - rect.left;
       const screenY = e.clientY - rect.top;
@@ -970,19 +1062,38 @@
       const mouseX = point.x;
       const mouseY = point.y;
 
-      if (isResizing) {
+      if (isSelecting && selectionBox) {
+        selectionBox.x2 = mouseX;
+        selectionBox.y2 = mouseY;
+        selectedIds = new Set(selectionBaseIds);
+        elements.forEach(el => {
+          if (boxIntersectsElement(selectionBox, el)) selectedIds.add(el.id);
+        });
+        draw();
+        return;
+      }
+
+      if (isResizing && selectedElement) {
         if (selectedElement.type === 'LINEA_H' || selectedElement.type === 'ACOMETIDA') {
           selectedElement.w = Math.max(40, Math.round((mouseX - selectedElement.x) / GRID) * GRID);
         } else if (selectedElement.type === 'LINEA_V') {
           selectedElement.h = Math.max(20, Math.round((mouseY - selectedElement.y) / GRID) * GRID);
         }
-      } else if (isDragging) {
-        let rawX = mouseX - dragOffsetX;
-        let rawY = mouseY - dragOffsetY;
-        selectedElement.x = Math.round(rawX / GRID) * GRID;
-        selectedElement.y = Math.round(rawY / GRID) * GRID;
+        draw();
+        return;
       }
-      draw();
+
+      if (isDragging && dragStartWorld) {
+        const deltaX = Math.round((mouseX - dragStartWorld.x) / GRID) * GRID;
+        const deltaY = Math.round((mouseY - dragStartWorld.y) / GRID) * GRID;
+        elements.forEach(el => {
+          const origin = groupOrigins.get(el.id);
+          if (!origin) return;
+          el.x = origin.x + deltaX;
+          el.y = origin.y + deltaY;
+        });
+        draw();
+      }
     });
 
     window.addEventListener('mouseup', () => {
@@ -991,17 +1102,28 @@
         canvas.style.cursor = spacePressed ? 'grab' : 'default';
       }
 
-      if (isDragging && selectedElement && connectionRules[selectedElement.type]) {
-        const result = findNearestCompatibleParent(selectedElement, true);
-        // La distancia no rompe una conexión existente. Si hay un padre
-        // compatible aguas arriba, la unión se conserva o cambia a ese padre.
-        if (result.parent) {
-          selectedElement.parentId = result.parent.id;
-        }
+      if (isSelecting) {
+        isSelecting = false;
+        selectionBox = null;
+        selectionStart = null;
+        selectedElement = elements.find(el => selectedIds.has(el.id)) || null;
         draw();
       }
+
+      // Al mover un solo elemento se permite cambiar su padre automáticamente.
+      // Un grupo conserva todas sus relaciones internas y externas.
+      if (isDragging && selectedIds.size === 1 && selectedElement &&
+          connectionRules[selectedElement.type]) {
+        const result = findNearestCompatibleParent(selectedElement, true);
+        if (result.parent) selectedElement.parentId = result.parent.id;
+      }
+
       isDragging = false;
       isResizing = false;
+      dragStartWorld = null;
+      groupOrigins.clear();
+      if (!isPanning) canvas.style.cursor = spacePressed ? 'grab' : 'default';
+      draw();
     });
 
     canvas.addEventListener('wheel', event => {
