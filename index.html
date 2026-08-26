@@ -821,6 +821,9 @@
         w: placement.w,
         h: type === 'PIA' ? 140 : placement.h,
         parentId: placement.parent ? placement.parent.id : null,
+        connectionOffsetY: placement.parent
+          ? Math.max(30, (placement.y - getOutputPort(placement.parent).y) / 2)
+          : null,
         text: getDefaultText(type)
       };
       elements.push(elem);
@@ -835,6 +838,8 @@
             if (el.y < minimumDifferentialY) {
               moveElementSubtree(el.id, 0, minimumDifferentialY - el.y);
             }
+            const from = getOutputPort(elem);
+            el.connectionOffsetY = Math.max(30, (el.y - from.y) / 2);
           }
         });
       }
@@ -1000,7 +1005,10 @@
 
         const from = getOutputPort(parent);
         const to = getInputPort(child);
-        const middleY = from.y + (to.y - from.y) / 2;
+        const offsetY = Number.isFinite(child.connectionOffsetY)
+          ? child.connectionOffsetY
+          : Math.max(30, (to.y - from.y) / 2);
+        const middleY = from.y + offsetY;
 
         ctx.beginPath();
         ctx.moveTo(from.x, from.y);
@@ -1492,7 +1500,17 @@
       if (isDragging && selectedIds.size === 1 && selectedElement &&
           connectionRules[selectedElement.type]) {
         const result = findNearestCompatibleParent(selectedElement, true);
-        if (result.parent) selectedElement.parentId = result.parent.id;
+        if (result.parent) {
+          const changedParent = selectedElement.parentId !== result.parent.id;
+          selectedElement.parentId = result.parent.id;
+          if (changedParent || !Number.isFinite(selectedElement.connectionOffsetY)) {
+            const from = getOutputPort(result.parent);
+            selectedElement.connectionOffsetY = Math.max(
+              30,
+              (selectedElement.y - from.y) / 2
+            );
+          }
+        }
       }
 
       isDragging = false;
