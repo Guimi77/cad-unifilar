@@ -406,7 +406,7 @@
         x: placement.x,
         y: placement.y,
         w: placement.w,
-        h: placement.h,
+        h: type === 'PIA' ? 140 : placement.h,
         parentId: placement.parent ? placement.parent.id : null,
         text: getDefaultText(type)
       };
