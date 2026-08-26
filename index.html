@@ -227,10 +227,10 @@
 
       // Una marca transversal por conductor/polo indicado al inicio: 4x... = 4.
       const spacing = 7;
-      const marksWidth = (poles - 1) * spacing;
-      const marksStart = (el.w - marksWidth) / 2;
+      const centerX = el.w / 2;
+      const firstOffset = -((poles - 1) * spacing) / 2;
       for (let i = 0; i < poles; i++) {
-        const x = marksStart + i * spacing;
+        const x = centerX + firstOffset + i * spacing;
         ctx.beginPath();
         ctx.moveTo(x - 4, lineY + 7);
         ctx.lineTo(x + 4, lineY - 7);
@@ -240,12 +240,11 @@
       // Descripción centrada sobre la línea.
       ctx.font = 'bold 10px "Courier New"';
       ctx.textAlign = 'center';
-      const textWidth = ctx.measureText(el.text).width;
-      ctx.fillStyle = '#fff';
-      ctx.fillRect((el.w - textWidth) / 2 - 3, lineY - 20, textWidth + 6, 13);
+      ctx.textBaseline = 'bottom';
       ctx.fillStyle = '#000';
-      ctx.fillText(el.text, el.w / 2, lineY - 10);
+      ctx.fillText(el.text, centerX, lineY - 9);
       ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
 
       if (!isExporting) {
         ctx.fillRect(el.w - 4, lineY - 4, 8, 8);
