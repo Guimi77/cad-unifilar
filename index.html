@@ -102,6 +102,8 @@
       box-shadow: 8px 0 28px rgba(8, 24, 30, 0.16);
     }
 
+    .mobile-library-toggle { display: none; }
+    .library-content { display: contents; }
     .sidebar-heading { padding: 2px 5px 12px; }
     .sidebar-heading strong { display: block; color: #f0f7f8; font-size: 0.85rem; letter-spacing: -0.01em; }
     .sidebar-heading span { display: block; margin-top: 4px; color: #9eb5bc; font-size: 0.69rem; line-height: 1.35; }
@@ -295,26 +297,56 @@
       .sidebar {
         order: 2;
         width: 100%;
-        height: calc(96px + env(safe-area-inset-bottom));
-        flex: 0 0 calc(96px + env(safe-area-inset-bottom));
-        flex-direction: row;
-        align-items: center;
-        gap: 7px;
-        padding: 8px 9px calc(8px + env(safe-area-inset-bottom));
-        border-top: 1px solid #284b55;
+        height: calc(54px + env(safe-area-inset-bottom));
+        flex: 0 0 calc(54px + env(safe-area-inset-bottom));
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+        padding: 0 9px env(safe-area-inset-bottom);
+        border-top: 1px solid #31545e;
         border-right: 0;
-        overflow-x: auto;
-        overflow-y: hidden;
-        overscroll-behavior-x: contain;
-        box-shadow: 0 -8px 24px rgba(8, 24, 30, 0.16);
-        scrollbar-width: thin;
+        overflow: hidden;
+        box-shadow: 0 -8px 24px rgba(8, 24, 30, 0.18);
+        transition: height 180ms ease, flex-basis 180ms ease;
+      }
+      .sidebar.is-open {
+        height: min(46dvh, 360px);
+        flex-basis: min(46dvh, 360px);
+      }
+      .mobile-library-toggle {
+        min-height: 53px;
+        width: 100%;
+        border: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: #edf7f8;
+        background: transparent;
+        font: 750 0.74rem/1 Inter, ui-sans-serif, system-ui, sans-serif;
+        cursor: pointer;
+      }
+      .library-chevron {
+        font-size: 1rem;
+        transition: transform 180ms ease;
+      }
+      .sidebar.is-open .library-chevron { transform: rotate(180deg); }
+      .library-content { display: none; }
+      .sidebar.is-open .library-content {
+        min-height: 0;
+        padding: 4px 0 10px;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
+        overflow-y: auto;
+        overscroll-behavior-y: contain;
       }
       .sidebar-heading,
       .sidebar-title { display: none; }
       .btn-lib {
-        flex: 0 0 138px;
-        min-height: 54px;
-        padding: 8px 10px 8px 38px;
+        width: 100%;
+        min-height: 52px;
+        padding: 8px 8px 8px 38px;
         white-space: normal;
       }
       .btn-lib:hover { transform: none; }
@@ -327,11 +359,11 @@
     @media (max-width: 520px) {
       .brand-copy h1 { font-size: 0.86rem; }
       .brand-mark { display: none; }
-      .sidebar {
-        height: calc(88px + env(safe-area-inset-bottom));
-        flex-basis: calc(88px + env(safe-area-inset-bottom));
+      .sidebar.is-open {
+        height: min(52dvh, 390px);
+        flex-basis: min(52dvh, 390px);
       }
-      .btn-lib { flex-basis: 124px; min-height: 50px; font-size: 0.63rem; }
+      .btn-lib { min-height: 50px; font-size: 0.63rem; }
       .editor-dialog { max-height: 92vh; overflow-y: auto; padding: 18px; }
       .pia-fields { grid-template-columns: 1fr; }
       .pia-fields .wide { grid-column: auto; }
@@ -355,25 +387,38 @@
   </header>
 
   <div class="container">
-    <aside class="sidebar">
-      <div class="sidebar-heading">
-        <strong>Biblioteca</strong>
-        <span>Añade conexiones y protecciones al esquema.</span>
+    <aside class="sidebar" id="libraryPanel">
+      <button
+        class="mobile-library-toggle"
+        id="libraryToggle"
+        type="button"
+        aria-expanded="false"
+        onclick="toggleMobileLibrary()"
+      >
+        <span>Biblioteca de elementos</span>
+        <span class="library-chevron">⌃</span>
+      </button>
+
+      <div class="library-content">
+        <div class="sidebar-heading">
+          <strong>Biblioteca</strong>
+          <span>Añade conexiones y protecciones al esquema.</span>
+        </div>
+
+        <div class="sidebar-title">Conexiones</div>
+        <button class="btn-lib" onclick="addElement('LINEA_H')">Línea horizontal</button>
+        <button class="btn-lib" onclick="addElement('LINEA_V')">Línea vertical</button>
+
+        <div class="sidebar-title">Símbolos normalizados</div>
+        <button class="btn-lib" onclick="addElement('ACOMETIDA')">Acometida</button>
+        <button class="btn-lib" onclick="addElement('IGA')">IGA / ICP</button>
+        <button class="btn-lib" onclick="addElement('GENERAL_FILA')">General de fila</button>
+        <button class="btn-lib" onclick="addElement('DIFERENCIAL')">Diferencial (ID)</button>
+        <button class="btn-lib" onclick="addElement('SOBRETENSION')">Protección sobretensiones</button>
+        <button class="btn-lib" onclick="addElement('PIA')">Magnetotérmico (PIA)</button>
+        <button class="btn-lib" onclick="addElement('TIERRA')">Toma de tierra</button>
+        <button class="btn-lib" onclick="addElement('TEXTO')">Nota de texto</button>
       </div>
-
-      <div class="sidebar-title">Conexiones</div>
-      <button class="btn-lib" onclick="addElement('LINEA_H')">Línea horizontal</button>
-      <button class="btn-lib" onclick="addElement('LINEA_V')">Línea vertical</button>
-
-      <div class="sidebar-title">Símbolos normalizados</div>
-      <button class="btn-lib" onclick="addElement('ACOMETIDA')">Acometida</button>
-      <button class="btn-lib" onclick="addElement('IGA')">IGA / ICP</button>
-      <button class="btn-lib" onclick="addElement('GENERAL_FILA')">General de fila</button>
-      <button class="btn-lib" onclick="addElement('DIFERENCIAL')">Diferencial (ID)</button>
-      <button class="btn-lib" onclick="addElement('SOBRETENSION')">Protección sobretensiones</button>
-      <button class="btn-lib" onclick="addElement('PIA')">Magnetotérmico (PIA)</button>
-      <button class="btn-lib" onclick="addElement('TIERRA')">Toma de tierra</button>
-      <button class="btn-lib" onclick="addElement('TEXTO')">Nota de texto</button>
     </aside>
 
     <div class="canvas-container" id="container">
@@ -668,6 +713,21 @@
       return { x: output.x, y: output.y + 80, w: 100, h: 100, parent };
     }
 
+    function toggleMobileLibrary(forceOpen = null) {
+      const panel = document.getElementById('libraryPanel');
+      const toggle = document.getElementById('libraryToggle');
+      const nextOpen = forceOpen === null ? !panel.classList.contains('is-open') : forceOpen;
+      panel.classList.toggle('is-open', nextOpen);
+      toggle.setAttribute('aria-expanded', String(nextOpen));
+      requestAnimationFrame(resizeCanvas);
+    }
+
+    function closeMobileLibrary() {
+      if (window.matchMedia('(max-width: 900px)').matches) {
+        toggleMobileLibrary(false);
+      }
+    }
+
     let pendingConnection = null;
 
     function elementConnectionLabel(el, index) {
@@ -851,6 +911,7 @@
         selectedElement = elem;
         selectedIds = new Set([elem.id]);
       }
+      closeMobileLibrary();
       fitViewToContent();
     }
 
