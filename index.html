@@ -575,7 +575,7 @@
 
     function getDefaultText(type) {
       switch(type) {
-        case 'ACOMETIDA': return '4x16mm²\n(15 m)';
+        case 'ACOMETIDA': return '4x16mm²\n(15 m)\nDesde contador';
         case 'IGA': return '4P\n40A';
         case 'DIFERENCIAL': return '4P\n40A\n30mA';
         case 'SOBRETENSION': return 'SPD T2\nUc 275V\nImax 40kA';
@@ -679,7 +679,7 @@
           ctx.lineWidth = 1;
           ctx.setLineDash([2, 2]);
           if (el.type === 'ACOMETIDA') {
-            ctx.strokeRect(-10, -25, el.w + 20, 55);
+            ctx.strokeRect(-10, -42, el.w + 20, 72);
           } else if (el.type === 'PIA') {
             ctx.strokeRect(-48, -10, 96, 142);
           } else {
@@ -768,12 +768,19 @@
         ctx.stroke();
       }
 
-      // Descripción centrada sobre la línea.
-      ctx.font = 'bold 10px "Courier New"';
+      // Procedencia, cable y distancia centrados sobre la línea.
+      const lines = normalizeTextLines(el.text);
+      const cable = lines[0] || '4x16mm²';
+      const distance = lines[1] || '(15 m)';
+      const origin = lines[2] || 'Desde contador';
+
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
       ctx.fillStyle = '#000';
-      ctx.fillText(el.text, centerX, lineY - 9);
+      ctx.font = 'bold 9px "Courier New"';
+      ctx.fillText(origin, centerX, lineY - 22);
+      ctx.font = 'bold 10px "Courier New"';
+      ctx.fillText(cable + '  ' + distance, centerX, lineY - 9);
       ctx.textAlign = 'left';
       ctx.textBaseline = 'alphabetic';
 
@@ -949,7 +956,7 @@
 
     function getElementBounds(el) {
       if (el.type === 'ACOMETIDA') {
-        return { left: el.x - 10, top: el.y - 25, right: el.x + el.w + 10, bottom: el.y + 30 };
+        return { left: el.x - 10, top: el.y - 42, right: el.x + el.w + 10, bottom: el.y + 30 };
       }
       if (el.type === 'PIA') {
         return { left: el.x - 48, top: el.y - 10, right: el.x + 48, bottom: el.y + 132 };
@@ -1381,7 +1388,8 @@
         fields: [
           { key: 'poles', label: 'Número de polos', placeholder: '4', value: '4' },
           { key: 'section', label: 'Sección del cable', placeholder: '16mm²', value: '16mm²' },
-          { key: 'distance', label: 'Distancia', placeholder: '15 m', value: '15 m', wide: true }
+          { key: 'distance', label: 'Distancia', placeholder: '15 m', value: '15 m', wide: true },
+          { key: 'origin', label: 'Procedencia', placeholder: 'Desde contador', value: 'Desde contador', wide: true }
         ]
       },
       IGA: {
@@ -1439,7 +1447,8 @@
         return {
           poles: match ? match[1] : '4',
           section: match ? match[2] : '16mm²',
-          distance: (lines[1] || '15 m').replace(/^\(|\)$/g, '')
+          distance: (lines[1] || '15 m').replace(/^\(|\)$/g, ''),
+          origin: lines[2] || 'Desde contador'
         };
       }
       if (el.type === 'IGA') return { poles: lines[0], amps: lines[1] };
@@ -1522,7 +1531,8 @@
         const poles = readField('poles', '4').replace(/[^0-9]/g, '') || '4';
         const section = readField('section', '16mm²');
         const distance = readField('distance', '15 m').replace(/^\(|\)$/g, '');
-        editingElement.text = poles + 'x' + section + '\n(' + distance + ')';
+        const origin = readField('origin', 'Desde contador');
+        editingElement.text = poles + 'x' + section + '\n(' + distance + ')\n' + origin;
       } else if (type === 'IGA') {
         editingElement.text = [readField('poles', '4P'), readField('amps', '40A')].join('\n');
       } else if (type === 'DIFERENCIAL') {
