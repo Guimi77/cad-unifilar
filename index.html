@@ -228,7 +228,7 @@
       // Una marca transversal por conductor/polo indicado al inicio: 4x... = 4.
       const spacing = 7;
       const marksWidth = (poles - 1) * spacing;
-      const marksStart = Math.min(24, Math.max(10, (el.w - marksWidth) / 4));
+      const marksStart = (el.w - marksWidth) / 2;
       for (let i = 0; i < poles; i++) {
         const x = marksStart + i * spacing;
         ctx.beginPath();
