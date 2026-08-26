@@ -716,7 +716,7 @@
       const selectedTargets = pendingConnection.candidates.filter(el => ids.has(el.id));
 
       if (pendingConnection.type === 'PIA') {
-        createElement('PIA', selectedTargets[0]);
+        createElement('PIA', selectedTargets[0], [], true);
       } else {
         createElement(
           'GENERAL_FILA',
@@ -732,12 +732,22 @@
     });
 
     function addElement(type) {
+      if (type === 'DIFERENCIAL') {
+        const selectedProtection = elements.find(el =>
+          selectedIds.has(el.id) && ['IGA', 'GENERAL_FILA'].includes(el.type)
+        );
+        if (selectedProtection) {
+          createElement(type, selectedProtection, [], true);
+          return;
+        }
+      }
+
       if (type === 'PIA') {
         const differentials = elements.filter(el => el.type === 'DIFERENCIAL');
         const selectedDifferential = differentials.find(el => selectedIds.has(el.id));
 
         if (selectedDifferential) {
-          createElement(type, selectedDifferential);
+          createElement(type, selectedDifferential, [], true);
           return;
         }
         if (differentials.length > 1) {
@@ -791,7 +801,7 @@
         .forEach(child => moveElementSubtree(child.id, deltaX, deltaY, visited));
     }
 
-    function createElement(type, forcedParent = null, downstreamIds = []) {
+    function createElement(type, forcedParent = null, downstreamIds = [], preserveParentSelection = false) {
       const placement = getAutomaticPlacement(type, forcedParent);
       let elem = {
         id: Date.now() + Math.random(),
@@ -819,8 +829,13 @@
         });
       }
 
-      selectedElement = elem;
-      selectedIds = new Set([elem.id]);
+      if (preserveParentSelection && forcedParent) {
+        selectedElement = forcedParent;
+        selectedIds = new Set([forcedParent.id]);
+      } else {
+        selectedElement = elem;
+        selectedIds = new Set([elem.id]);
+      }
       fitViewToContent();
     }
 
