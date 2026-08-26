@@ -489,7 +489,7 @@
     }
 
     function setZoomAt(newZoom, screenX, screenY) {
-      const clampedZoom = Math.max(0.35, Math.min(3, newZoom));
+      const clampedZoom = Math.max(0.15, Math.min(3, newZoom));
       const worldPoint = screenToWorld(screenX, screenY);
       viewZoom = clampedZoom;
       viewX = screenX - worldPoint.x * viewZoom;
@@ -507,11 +507,7 @@
     }
 
     function resetView() {
-      viewX = 0;
-      viewY = 0;
-      viewZoom = 1;
-      updateZoomValue();
-      draw();
+      fitViewToContent();
     }
     window.addEventListener('resize', resizeCanvas);
 
@@ -560,7 +556,7 @@
 
     function getAutomaticPlacement(type) {
       if (type === 'ACOMETIDA') {
-        return { x: 100, y: 80, w: 220, h: 40, parent: null };
+        return { x: 80, y: 50, w: 220, h: 40, parent: null };
       }
 
       const allowed = connectionRules[type] || [];
@@ -649,7 +645,7 @@
       elements.push(elem);
       selectedElement = elem;
       selectedIds = new Set([elem.id]);
-      draw();
+      fitViewToContent();
     }
 
     function getDefaultText(type) {
@@ -1052,6 +1048,60 @@
       return { left: el.x - 16, top: el.y - 12, right: el.x + width, bottom: el.y + height };
     }
 
+    function getDiagramBounds(includeCajetin = false) {
+      if (elements.length === 0) {
+        return { left: 0, top: 0, right: viewWidth, bottom: viewHeight };
+      }
+
+      let left = Infinity;
+      let top = Infinity;
+      let right = -Infinity;
+      let bottom = -Infinity;
+
+      elements.forEach(el => {
+        const bounds = getElementBounds(el);
+        left = Math.min(left, bounds.left);
+        top = Math.min(top, bounds.top);
+        right = Math.max(right, bounds.right);
+        bottom = Math.max(bottom, bounds.bottom);
+      });
+
+      if (includeCajetin) {
+        left = Math.min(left, cajetin.x);
+        top = Math.min(top, cajetin.y);
+        right = Math.max(right, cajetin.x + cajetin.width);
+        bottom = Math.max(bottom, cajetin.y + cajetin.height);
+      }
+
+      return { left, top, right, bottom };
+    }
+
+    function fitViewToContent() {
+      if (!elements.length || !viewWidth || !viewHeight) {
+        draw();
+        return;
+      }
+
+      const bounds = getDiagramBounds(false);
+      const marginX = Math.min(54, viewWidth * 0.08);
+      const marginTop = Math.min(34, viewHeight * 0.06);
+      const marginBottom = Math.min(48, viewHeight * 0.08);
+      const contentWidth = Math.max(1, bounds.right - bounds.left);
+      const contentHeight = Math.max(1, bounds.bottom - bounds.top);
+      const availableWidth = Math.max(1, viewWidth - marginX * 2);
+      const availableHeight = Math.max(1, viewHeight - marginTop - marginBottom);
+
+      viewZoom = Math.max(0.15, Math.min(
+        1,
+        availableWidth / contentWidth,
+        availableHeight / contentHeight
+      ));
+      viewX = marginX - bounds.left * viewZoom;
+      viewY = marginTop - bounds.top * viewZoom;
+      updateZoomValue();
+      draw();
+    }
+
     function pointHitsElement(x, y, el) {
       const bounds = getElementBounds(el);
       return x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom;
@@ -1308,7 +1358,7 @@
 
         const center = touchCenter(event.touches);
         const distance = touchDistance(event.touches);
-        viewZoom = Math.max(0.35, Math.min(3,
+        viewZoom = Math.max(0.15, Math.min(3,
           touchStartZoom * (distance / Math.max(1, touchStartDistance))
         ));
         viewX = center.x - touchWorldAnchor.x * viewZoom;
@@ -1835,6 +1885,37 @@
     }
 
     function generatePNG() {
+      const previousState = {
+        viewWidth,
+        viewHeight,
+        viewX,
+        viewY,
+        viewZoom,
+        canvasWidth: canvas.width,
+        canvasHeight: canvas.height
+      };
+
+      const bounds = getDiagramBounds(true);
+      const contentWidth = Math.max(1, bounds.right - bounds.left);
+      const contentHeight = Math.max(1, bounds.bottom - bounds.top);
+      const margin = 50;
+      const maxExportWidth = 2300;
+      const maxExportHeight = 1500;
+      const exportZoom = Math.min(
+        1,
+        (maxExportWidth - margin * 2) / contentWidth,
+        (maxExportHeight - margin * 2) / contentHeight
+      );
+
+      viewZoom = exportZoom;
+      viewX = margin - bounds.left * exportZoom;
+      viewY = margin - bounds.top * exportZoom;
+      viewWidth = Math.ceil(contentWidth * exportZoom + margin * 2);
+      viewHeight = Math.ceil(contentHeight * exportZoom + margin * 2);
+
+      canvas.width = Math.round(viewWidth * RENDER_SCALE);
+      canvas.height = Math.round(viewHeight * RENDER_SCALE);
+      ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
       draw(true);
 
       const link = document.createElement('a');
@@ -1842,6 +1923,15 @@
       link.href = canvas.toDataURL('image/png');
       link.click();
 
+      viewWidth = previousState.viewWidth;
+      viewHeight = previousState.viewHeight;
+      viewX = previousState.viewX;
+      viewY = previousState.viewY;
+      viewZoom = previousState.viewZoom;
+      canvas.width = previousState.canvasWidth;
+      canvas.height = previousState.canvasHeight;
+      ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
+      updateZoomValue();
       draw(false);
     }
 
