@@ -156,7 +156,12 @@
       overflow: hidden;
       background: #dbe4e7;
     }
-    canvas { display: block; background: #f7f9f8; }
+    canvas {
+      display: block;
+      background: #f7f9f8;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+    }
     .viewport-controls {
       position: absolute;
       right: 18px;
@@ -261,11 +266,54 @@
     .validation-group li { color: #40515b; font-size: 0.72rem; line-height: 1.4; }
 
     @media (max-width: 900px) {
-      header { padding: 8px 12px; align-items: flex-start; }
+      header { min-height: 56px; padding: 7px 10px; }
+      .brand { min-width: 0; }
+      .brand-mark { width: 34px; height: 34px; border-radius: 9px; }
       .brand-copy span { display: none; }
       .header-btns { gap: 5px; }
-      .btn-hdr { min-height: 32px; padding: 0 8px; font-size: 0.62rem; }
-      .sidebar { width: 210px; padding-inline: 9px; }
+      .btn-hdr { min-height: 34px; padding: 0 10px; font-size: 0.66rem; }
+
+      .container { flex-direction: column; }
+      .canvas-container { order: 1; min-height: 0; }
+      .sidebar {
+        order: 2;
+        width: 100%;
+        height: 126px;
+        flex: 0 0 126px;
+        flex-direction: row;
+        align-items: center;
+        gap: 7px;
+        padding: 10px;
+        border-top: 1px solid #284b55;
+        border-right: 0;
+        overflow-x: auto;
+        overflow-y: hidden;
+        overscroll-behavior-x: contain;
+        box-shadow: 0 -8px 24px rgba(8, 24, 30, 0.16);
+        scrollbar-width: thin;
+      }
+      .sidebar-heading,
+      .sidebar-title { display: none; }
+      .btn-lib {
+        flex: 0 0 148px;
+        min-height: 62px;
+        padding: 8px 10px 8px 38px;
+        white-space: normal;
+      }
+      .btn-lib:hover { transform: none; }
+      .canvas-hint { display: none; }
+      .viewport-controls { right: 10px; bottom: 10px; }
+    }
+
+    @media (max-width: 520px) {
+      .brand-copy h1 { font-size: 0.86rem; }
+      .brand-mark { display: none; }
+      .sidebar { height: 112px; flex-basis: 112px; }
+      .btn-lib { flex-basis: 132px; min-height: 56px; font-size: 0.66rem; }
+      .editor-dialog { max-height: 92vh; overflow-y: auto; padding: 18px; }
+      .pia-fields { grid-template-columns: 1fr; }
+      .pia-fields .wide { grid-column: auto; }
+      .editor-actions { position: sticky; bottom: -18px; padding: 12px 0 2px; background: #fff; }
     }
   </style>
 </head>
@@ -406,6 +454,12 @@
     let selectionBaseIds = new Set();
     let dragStartWorld = null;
     let groupOrigins = new Map();
+    let touchMode = null;
+    let touchStartDistance = 0;
+    let touchStartZoom = 1;
+    let touchWorldAnchor = null;
+    let lastTouchTap = { time: 0, x: 0, y: 0 };
+    let touchMoved = false;
 
     function resizeCanvas() {
       viewWidth = container.clientWidth;
@@ -1183,6 +1237,128 @@
       dragStartWorld = null;
       groupOrigins.clear();
       if (!isPanning) canvas.style.cursor = spacePressed ? 'grab' : 'default';
+      draw();
+    });
+
+    function touchCenter(touches) {
+      const rect = canvas.getBoundingClientRect();
+      const first = touches[0];
+      const second = touches[1] || touches[0];
+      return {
+        x: ((first.clientX + second.clientX) / 2) - rect.left,
+        y: ((first.clientY + second.clientY) / 2) - rect.top
+      };
+    }
+
+    function touchDistance(touches) {
+      if (touches.length < 2) return 0;
+      return Math.hypot(
+        touches[1].clientX - touches[0].clientX,
+        touches[1].clientY - touches[0].clientY
+      );
+    }
+
+    function dispatchTouchMouse(type, touch) {
+      canvas.dispatchEvent(new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        clientX: touch.clientX,
+        clientY: touch.clientY,
+        button: 0
+      }));
+    }
+
+    canvas.addEventListener('touchstart', event => {
+      event.preventDefault();
+      touchMoved = false;
+
+      if (event.touches.length >= 2) {
+        touchMode = 'pinch';
+        isDragging = false;
+        isSelecting = false;
+        selectionBox = null;
+        touchStartDistance = touchDistance(event.touches);
+        touchStartZoom = viewZoom;
+        const center = touchCenter(event.touches);
+        touchWorldAnchor = screenToWorld(center.x, center.y);
+        return;
+      }
+
+      if (event.touches.length === 1) {
+        touchMode = 'single';
+        dispatchTouchMouse('mousedown', event.touches[0]);
+      }
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', event => {
+      event.preventDefault();
+      touchMoved = true;
+
+      if (event.touches.length >= 2) {
+        if (touchMode !== 'pinch') {
+          touchMode = 'pinch';
+          isDragging = false;
+          isSelecting = false;
+          selectionBox = null;
+          touchStartDistance = touchDistance(event.touches);
+          touchStartZoom = viewZoom;
+          const startCenter = touchCenter(event.touches);
+          touchWorldAnchor = screenToWorld(startCenter.x, startCenter.y);
+        }
+
+        const center = touchCenter(event.touches);
+        const distance = touchDistance(event.touches);
+        viewZoom = Math.max(0.35, Math.min(3,
+          touchStartZoom * (distance / Math.max(1, touchStartDistance))
+        ));
+        viewX = center.x - touchWorldAnchor.x * viewZoom;
+        viewY = center.y - touchWorldAnchor.y * viewZoom;
+        updateZoomValue();
+        draw();
+        return;
+      }
+
+      if (touchMode === 'single' && event.touches.length === 1) {
+        dispatchTouchMouse('mousemove', event.touches[0]);
+      }
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', event => {
+      event.preventDefault();
+
+      if (touchMode === 'single') {
+        const changed = event.changedTouches[0];
+        dispatchTouchMouse('mouseup', changed);
+
+        if (!touchMoved) {
+          const now = Date.now();
+          const closeToLast = Math.hypot(
+            changed.clientX - lastTouchTap.x,
+            changed.clientY - lastTouchTap.y
+          ) < 28;
+
+          if (now - lastTouchTap.time < 360 && closeToLast) {
+            dispatchTouchMouse('dblclick', changed);
+            lastTouchTap.time = 0;
+          } else {
+            lastTouchTap = { time: now, x: changed.clientX, y: changed.clientY };
+          }
+        }
+      }
+
+      if (event.touches.length === 0) {
+        touchMode = null;
+        isPanning = false;
+        canvas.style.cursor = 'default';
+      }
+    }, { passive: false });
+
+    canvas.addEventListener('touchcancel', () => {
+      touchMode = null;
+      isDragging = false;
+      isSelecting = false;
+      selectionBox = null;
+      canvas.style.cursor = 'default';
       draw();
     });
 
