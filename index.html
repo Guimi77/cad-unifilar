@@ -508,7 +508,11 @@
       ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
 
       cajetin.x = viewWidth - cajetin.width - 20;
-      draw();
+      if (elements.length && window.matchMedia('(max-width: 900px)').matches) {
+        fitViewToContent();
+      } else {
+        draw();
+      }
     }
 
     function screenToWorld(screenX, screenY) {
