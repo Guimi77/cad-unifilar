@@ -38,8 +38,9 @@
       justify-content: space-between;
       gap: 20px;
       padding: 0 20px;
-      background: rgba(255, 255, 255, 0.96);
-      box-shadow: 0 1px 12px rgba(20, 33, 43, 0.05);
+      background: #102a33;
+      border-bottom-color: #264650;
+      box-shadow: 0 4px 18px rgba(8, 24, 30, 0.22);
       z-index: 10;
     }
 
@@ -56,8 +57,8 @@
       font-size: 18px;
     }
     .brand-copy { display: flex; flex-direction: column; line-height: 1.1; }
-    .brand-copy h1 { font-size: 0.98rem; font-weight: 750; letter-spacing: -0.02em; }
-    .brand-copy span { margin-top: 4px; color: var(--muted); font-size: 0.68rem; font-weight: 550; }
+    .brand-copy h1 { color: #f4fbfc; font-size: 0.98rem; font-weight: 750; letter-spacing: -0.02em; }
+    .brand-copy span { margin-top: 4px; color: #9eb8c0; font-size: 0.68rem; font-weight: 550; }
 
     .header-btns { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
     .btn-hdr {
@@ -90,21 +91,22 @@
       width: 260px;
       border-right: 1px solid var(--line);
       padding: 18px 14px;
-      background: #fbfcfd;
+      background: #17343d;
+      border-right-color: #284b55;
       display: flex;
       flex-direction: column;
       gap: 7px;
       z-index: 5;
       overflow-y: auto;
-      box-shadow: 8px 0 24px rgba(20, 33, 43, 0.035);
+      box-shadow: 8px 0 28px rgba(8, 24, 30, 0.16);
     }
 
     .sidebar-heading { padding: 2px 5px 12px; }
-    .sidebar-heading strong { display: block; font-size: 0.85rem; letter-spacing: -0.01em; }
-    .sidebar-heading span { display: block; margin-top: 4px; color: var(--muted); font-size: 0.69rem; line-height: 1.35; }
+    .sidebar-heading strong { display: block; color: #f0f7f8; font-size: 0.85rem; letter-spacing: -0.01em; }
+    .sidebar-heading span { display: block; margin-top: 4px; color: #9eb5bc; font-size: 0.69rem; line-height: 1.35; }
     .sidebar-title {
       margin: 10px 5px 2px;
-      color: #80909a;
+      color: #7fa3ad;
       font-size: 0.62rem;
       font-weight: 800;
       letter-spacing: 0.12em;
@@ -118,7 +120,7 @@
       border: 1px solid transparent;
       border-radius: 10px;
       padding: 0 12px 0 38px;
-      color: #33434d;
+      color: #d8e6e9;
       background: transparent;
       text-align: left;
       font: 650 0.72rem/1.2 Inter, ui-sans-serif, system-ui, sans-serif;
@@ -135,16 +137,16 @@
       border-radius: 6px;
       display: grid;
       place-items: center;
-      color: var(--brand);
-      background: #e4f4f5;
+      color: #74d5df;
+      background: #234952;
       transform: translateY(-50%);
       font-size: 14px;
       font-weight: 800;
     }
     .btn-lib:hover {
-      color: var(--brand-dark);
-      border-color: #cce4e7;
-      background: #f0f9fa;
+      color: #ffffff;
+      border-color: #3b6872;
+      background: #234b55;
       transform: translateX(2px);
     }
 
@@ -152,9 +154,9 @@
       flex: 1;
       position: relative;
       overflow: hidden;
-      background: #edf2f4;
+      background: #dbe4e7;
     }
-    canvas { display: block; background: #fff; }
+    canvas { display: block; background: #f7f9f8; }
     .viewport-controls {
       position: absolute;
       right: 18px;
@@ -610,7 +612,7 @@
     function draw(isExporting = false) {
       ctx.clearRect(0, 0, viewWidth, viewHeight);
 
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = isExporting ? '#ffffff' : '#f7f9f8';
       ctx.fillRect(0, 0, viewWidth, viewHeight);
 
       ctx.save();
