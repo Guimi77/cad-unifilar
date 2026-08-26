@@ -2145,7 +2145,7 @@
         const cable = lines[0] || '4x16mm²';
         const match = cable.match(/^(\d+)\s*[xX×]\s*(.+)$/);
         return {
-          poles: match ? match[1] : '4',
+          poles: (match ? match[1] : '4') + 'P',
           section: match ? match[2] : '16mm²',
           distance: (lines[1] || '15mts.').replace(/^\(|\)$/g, ''),
           origin: lines[2] || 'Desde contador'
