@@ -101,7 +101,7 @@
 
     function getDefaultText(type) {
       switch(type) {
-        case 'ACOMETIDA': return 'CGP|MEDIDA 230V';
+        case 'ACOMETIDA': return '4x16mm² (15mts)';
         case 'IGA': return 'Mag.|40A';
         case 'DIFERENCIAL': return 'Dif.|40A|30mA';
         case 'PIA': return 'Mag.|16A';
@@ -168,7 +168,10 @@
             ctx.fillRect(-4, el.h - 4, 8, 8);
           }
         } 
-        else if (['ACOMETIDA', 'IGA', 'DIFERENCIAL', 'PIA', 'TIERRA'].includes(el.type)) {
+        else if (el.type === 'ACOMETIDA') {
+          drawAcometida(el, isExporting);
+        }
+        else if (['IGA', 'DIFERENCIAL', 'PIA', 'TIERRA'].includes(el.type)) {
           drawSymbol(el.type, el.text);
         }
         else if (el.type === 'TEXTO') {
@@ -181,7 +184,11 @@
           ctx.strokeStyle = '#00f';
           ctx.lineWidth = 1;
           ctx.setLineDash([2, 2]);
-          ctx.strokeRect(-10, -10, 40, 55);
+          if (el.type === 'ACOMETIDA') {
+            ctx.strokeRect(-10, -25, el.w + 20, 55);
+          } else {
+            ctx.strokeRect(-10, -10, 40, 55);
+          }
           ctx.setLineDash([]);
         }
 
@@ -191,6 +198,48 @@
       drawCajetin();
     }
 
+    function drawAcometida(el, isExporting) {
+      const lineY = 10;
+      const match = el.text.trim().match(/^(\d+)\s*[xX×]/);
+      const poles = match ? Math.max(1, Math.min(12, parseInt(match[1], 10))) : 1;
+
+      ctx.strokeStyle = '#000';
+      ctx.fillStyle = '#000';
+      ctx.lineWidth = 2;
+
+      // Línea horizontal de acometida.
+      ctx.beginPath();
+      ctx.moveTo(0, lineY);
+      ctx.lineTo(el.w, lineY);
+      ctx.stroke();
+
+      // Una marca transversal por conductor/polo indicado al inicio: 4x... = 4.
+      const spacing = 7;
+      const marksWidth = (poles - 1) * spacing;
+      const marksStart = Math.min(24, Math.max(10, (el.w - marksWidth) / 4));
+      for (let i = 0; i < poles; i++) {
+        const x = marksStart + i * spacing;
+        ctx.beginPath();
+        ctx.moveTo(x - 4, lineY + 7);
+        ctx.lineTo(x + 4, lineY - 7);
+        ctx.stroke();
+      }
+
+      // Descripción centrada sobre la línea.
+      ctx.font = 'bold 10px "Courier New"';
+      ctx.textAlign = 'center';
+      const textWidth = ctx.measureText(el.text).width;
+      ctx.fillStyle = '#fff';
+      ctx.fillRect((el.w - textWidth) / 2 - 3, lineY - 20, textWidth + 6, 13);
+      ctx.fillStyle = '#000';
+      ctx.fillText(el.text, el.w / 2, lineY - 10);
+      ctx.textAlign = 'left';
+
+      if (!isExporting) {
+        ctx.fillRect(el.w - 4, lineY - 4, 8, 8);
+      }
+    }
+
     function drawSymbol(type, text) {
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 2;
@@ -198,13 +247,7 @@
 
       ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 15); ctx.stroke();
 
-      if (type === 'ACOMETIDA') {
-        ctx.strokeRect(-15, 15, 30, 30);
-        ctx.font = 'bold 9px "Courier New"';
-        ctx.fillText('kWh', -11, 33);
-        ctx.beginPath(); ctx.moveTo(0, 45); ctx.lineTo(0, 60); ctx.stroke();
-      } 
-      else if (type === 'IGA' || type === 'PIA') {
+      if (type === 'IGA' || type === 'PIA') {
         ctx.beginPath();
         ctx.moveTo(0, 15); ctx.lineTo(8, 27);
         ctx.moveTo(0, 42); ctx.lineTo(0, 60);
@@ -313,7 +356,9 @@
       for (let i = elements.length - 1; i >= 0; i--) {
         let el = elements[i];
         
-        if (el.type === 'LINEA_H' && Math.abs(mouseX - (el.x + el.w)) < 8 && Math.abs(mouseY - el.y) < 8) {
+        if ((el.type === 'LINEA_H' || el.type === 'ACOMETIDA') &&
+            Math.abs(mouseX - (el.x + el.w)) < 8 &&
+            Math.abs(mouseY - (el.y + (el.type === 'ACOMETIDA' ? 10 : 0))) < 8) {
           selectedElement = el;
           isResizing = true;
           return;
@@ -346,8 +391,8 @@
       const mouseY = e.clientY - rect.top;
 
       if (isResizing) {
-        if (selectedElement.type === 'LINEA_H') {
-          selectedElement.w = Math.max(20, Math.round((mouseX - selectedElement.x) / GRID) * GRID);
+        if (selectedElement.type === 'LINEA_H' || selectedElement.type === 'ACOMETIDA') {
+          selectedElement.w = Math.max(40, Math.round((mouseX - selectedElement.x) / GRID) * GRID);
         } else if (selectedElement.type === 'LINEA_V') {
           selectedElement.h = Math.max(20, Math.round((mouseY - selectedElement.y) / GRID) * GRID);
         }
