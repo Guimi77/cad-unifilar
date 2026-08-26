@@ -246,6 +246,7 @@
     .editor-field { display: grid; gap: 6px; margin-top: 12px; }
     .editor-field label { color: #4e606b; font-size: 0.68rem; font-weight: 750; }
     .editor-field input,
+    .editor-field select,
     .editor-field textarea {
       width: 100%;
       border: 1px solid var(--line);
@@ -259,6 +260,7 @@
     }
     .editor-field textarea { min-height: 130px; resize: vertical; }
     .editor-field input:focus,
+    .editor-field select:focus,
     .editor-field textarea:focus {
       border-color: var(--brand);
       box-shadow: 0 0 0 3px rgba(8, 126, 139, 0.12);
@@ -1198,7 +1200,7 @@
       // Procedencia, cable y distancia centrados sobre la línea.
       const lines = normalizeTextLines(el.text);
       const cable = lines[0] || '4x16mm²';
-      const distance = lines[1] || '(15 m)';
+      const distance = lines[1] || '(15mts.)';
       const origin = lines[2] || 'Desde contador';
 
       ctx.textAlign = 'center';
@@ -1309,7 +1311,7 @@
           const poles = lines[0] || '2P';
           const amps = lines[1] || '16A';
           const circuit = lines[2] || 'Circuito';
-          const rawDistance = lines[3] || '(15 m)';
+          const rawDistance = lines[3] || '(15mts.)';
           const distance = /^\(.*\)$/.test(rawDistance) ? rawDistance : '(' + rawDistance + ')';
 
           // Polos e intensidad a la derecha del símbolo.
@@ -2068,36 +2070,41 @@
 
     let editingElement = null;
 
+    const POLE_OPTIONS = ['2P', '3P', '4P'];
+    const AMP_OPTIONS = ['10A', '16A', '20A', '25A', '32A', '40A', '63A'];
+    const SENSITIVITY_OPTIONS = ['30mA', '300mA'];
+    const CABLE_SECTION_OPTIONS = ['6mm²', '10mm²', '16mm²', '25mm²'];
+
     const symbolEditorSchemas = {
       ACOMETIDA: {
         title: 'Editar acometida',
         fields: [
-          { key: 'poles', label: 'Número de polos', placeholder: '4', value: '4' },
-          { key: 'section', label: 'Sección del cable', placeholder: '16mm²', value: '16mm²' },
-          { key: 'distance', label: 'Distancia', placeholder: '15 m', value: '15 m', wide: true },
+          { key: 'poles', label: 'Número de polos', value: '4P', options: POLE_OPTIONS },
+          { key: 'section', label: 'Sección del cable', value: '16mm²', options: CABLE_SECTION_OPTIONS, unit: 'mm²', allowOther: true },
+          { key: 'distance', label: 'Distancia', placeholder: '15', value: '15', unit: 'mts.', numericOnly: true, wide: true },
           { key: 'origin', label: 'Procedencia', placeholder: 'Desde contador', value: 'Desde contador', wide: true }
         ]
       },
       IGA: {
         title: 'Editar interruptor general',
         fields: [
-          { key: 'poles', label: 'Número de polos', placeholder: '4P', value: '4P' },
-          { key: 'amps', label: 'Intensidad', placeholder: '40A', value: '40A' }
+          { key: 'poles', label: 'Número de polos', value: '4P', options: POLE_OPTIONS },
+          { key: 'amps', label: 'Intensidad', value: '40A', options: AMP_OPTIONS, unit: 'A', allowOther: true }
         ]
       },
       GENERAL_FILA: {
         title: 'Editar general de fila',
         fields: [
-          { key: 'poles', label: 'Número de polos', placeholder: '4P', value: '4P' },
-          { key: 'amps', label: 'Intensidad', placeholder: '40A', value: '40A' }
+          { key: 'poles', label: 'Número de polos', value: '4P', options: POLE_OPTIONS },
+          { key: 'amps', label: 'Intensidad', value: '40A', options: AMP_OPTIONS, unit: 'A', allowOther: true }
         ]
       },
       DIFERENCIAL: {
         title: 'Editar diferencial',
         fields: [
-          { key: 'poles', label: 'Número de polos', placeholder: '4P', value: '4P' },
-          { key: 'amps', label: 'Intensidad', placeholder: '40A', value: '40A' },
-          { key: 'sensitivity', label: 'Sensibilidad', placeholder: '30mA', value: '30mA', wide: true }
+          { key: 'poles', label: 'Número de polos', value: '4P', options: POLE_OPTIONS },
+          { key: 'amps', label: 'Intensidad', value: '40A', options: AMP_OPTIONS, unit: 'A', allowOther: true },
+          { key: 'sensitivity', label: 'Sensibilidad', value: '30mA', options: SENSITIVITY_OPTIONS, unit: 'mA', allowOther: true, wide: true }
         ]
       },
       SOBRETENSION: {
@@ -2111,10 +2118,10 @@
       PIA: {
         title: 'Editar magnetotérmico',
         fields: [
-          { key: 'poles', label: 'Número de polos', placeholder: '2P', value: '2P' },
-          { key: 'amps', label: 'Intensidad', placeholder: '16A', value: '16A' },
+          { key: 'poles', label: 'Número de polos', value: '2P', options: POLE_OPTIONS },
+          { key: 'amps', label: 'Intensidad', value: '16A', options: AMP_OPTIONS, unit: 'A', allowOther: true },
           { key: 'circuit', label: 'Nombre del circuito', placeholder: 'C1 Iluminación', value: 'Circuito', wide: true },
-          { key: 'distance', label: 'Distancia', placeholder: '15 m', value: '15 m', wide: true }
+          { key: 'distance', label: 'Distancia', placeholder: '15', value: '15', unit: 'mts.', numericOnly: true, wide: true }
         ]
       },
       TIERRA: {
@@ -2140,7 +2147,7 @@
         return {
           poles: match ? match[1] : '4',
           section: match ? match[2] : '16mm²',
-          distance: (lines[1] || '15 m').replace(/^\(|\)$/g, ''),
+          distance: (lines[1] || '15mts.').replace(/^\(|\)$/g, ''),
           origin: lines[2] || 'Desde contador'
         };
       }
@@ -2159,21 +2166,76 @@
       return {};
     }
 
+    function extractNumericValue(value, fallback = '') {
+      const match = String(value || fallback).replace(',', '.').match(/\d+(?:\.\d+)?/);
+      return match ? match[0] : '';
+    }
+
     function renderStructuredFields(schema, values) {
       const container = document.getElementById('structuredEditor');
       container.innerHTML = '';
+
       schema.fields.forEach(field => {
         const wrapper = document.createElement('div');
         wrapper.className = 'editor-field' + (field.wide ? ' wide' : '');
         const label = document.createElement('label');
         label.htmlFor = 'field-' + field.key;
         label.textContent = field.label;
-        const input = document.createElement('input');
-        input.id = 'field-' + field.key;
-        input.type = 'text';
-        input.placeholder = field.placeholder;
-        input.value = values[field.key] || field.value;
-        wrapper.append(label, input);
+        wrapper.appendChild(label);
+
+        const currentValue = values[field.key] || field.value;
+
+        if (field.options) {
+          const select = document.createElement('select');
+          select.id = 'field-' + field.key;
+          select.dataset.unit = field.unit || '';
+
+          field.options.forEach(optionValue => {
+            const option = document.createElement('option');
+            option.value = optionValue;
+            option.textContent = optionValue;
+            select.appendChild(option);
+          });
+
+          const isStandard = field.options.includes(currentValue);
+          if (field.allowOther) {
+            const otherOption = document.createElement('option');
+            otherOption.value = '__other__';
+            otherOption.textContent = 'Otros…';
+            select.appendChild(otherOption);
+          }
+          select.value = isStandard ? currentValue : (field.allowOther ? '__other__' : field.options[0]);
+          wrapper.appendChild(select);
+
+          if (field.allowOther) {
+            const customInput = document.createElement('input');
+            customInput.id = 'field-' + field.key + '-other';
+            customInput.type = 'text';
+            customInput.inputMode = 'decimal';
+            customInput.placeholder = 'Solo cifra';
+            customInput.value = isStandard ? '' : extractNumericValue(currentValue, field.value);
+            customInput.hidden = select.value !== '__other__';
+            select.addEventListener('change', () => {
+              customInput.hidden = select.value !== '__other__';
+              if (!customInput.hidden) customInput.focus();
+            });
+            wrapper.appendChild(customInput);
+          }
+        } else {
+          const input = document.createElement('input');
+          input.id = 'field-' + field.key;
+          input.type = 'text';
+          input.placeholder = field.placeholder || '';
+          input.dataset.unit = field.unit || '';
+          if (field.numericOnly) {
+            input.inputMode = 'decimal';
+            input.value = extractNumericValue(currentValue, field.value);
+          } else {
+            input.value = currentValue;
+          }
+          wrapper.appendChild(input);
+        }
+
         container.appendChild(wrapper);
       });
     }
@@ -2212,8 +2274,23 @@
     }
 
     function readField(key, fallback) {
-      const input = document.getElementById('field-' + key);
-      return input && input.value.trim() ? input.value.trim() : fallback;
+      const control = document.getElementById('field-' + key);
+      if (!control) return fallback;
+
+      const unit = control.dataset.unit || '';
+      if (control.tagName === 'SELECT') {
+        if (control.value !== '__other__') return control.value;
+        const custom = document.getElementById('field-' + key + '-other');
+        const numeric = extractNumericValue(custom ? custom.value : '', fallback);
+        return numeric ? numeric + unit : fallback;
+      }
+
+      const rawValue = control.value.trim();
+      if (unit) {
+        const numeric = extractNumericValue(rawValue, fallback);
+        return numeric ? numeric + unit : fallback;
+      }
+      return rawValue || fallback;
     }
 
     function saveTextEditor() {
@@ -2223,7 +2300,7 @@
       if (type === 'ACOMETIDA') {
         const poles = readField('poles', '4').replace(/[^0-9]/g, '') || '4';
         const section = readField('section', '16mm²');
-        const distance = readField('distance', '15 m').replace(/^\(|\)$/g, '');
+        const distance = readField('distance', '15mts.').replace(/^\(|\)$/g, '');
         const origin = readField('origin', 'Desde contador');
         editingElement.text = poles + 'x' + section + '\n(' + distance + ')\n' + origin;
       } else if (type === 'IGA' || type === 'GENERAL_FILA') {
@@ -2233,7 +2310,7 @@
       } else if (type === 'SOBRETENSION') {
         editingElement.text = [readField('spdType', 'SPD T2'), readField('uc', 'Uc 275V'), readField('imax', 'Imax 40kA')].join('\n');
       } else if (type === 'PIA') {
-        const distance = readField('distance', '15 m').replace(/^\(|\)$/g, '');
+        const distance = readField('distance', '15mts.').replace(/^\(|\)$/g, '');
         editingElement.text = [readField('poles', '2P'), readField('amps', '16A'), readField('circuit', 'Circuito'), '(' + distance + ')'].join('\n');
       } else if (type === 'TIERRA') {
         editingElement.text = readField('section', 'PE 16mm²');
