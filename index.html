@@ -155,6 +155,46 @@
       background: #edf2f4;
     }
     canvas { display: block; background: #fff; }
+    .viewport-controls {
+      position: absolute;
+      right: 18px;
+      bottom: 18px;
+      z-index: 8;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 5px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+    }
+    .viewport-controls button {
+      min-width: 34px;
+      height: 32px;
+      border: 0;
+      border-radius: 8px;
+      color: var(--ink);
+      background: transparent;
+      font: 750 0.78rem/1 Inter, ui-sans-serif, system-ui, sans-serif;
+      cursor: pointer;
+    }
+    .viewport-controls button:hover { color: var(--brand-dark); background: #eaf5f6; }
+    .viewport-controls .zoom-value { min-width: 52px; color: var(--muted); font-size: 0.68rem; }
+    .canvas-hint {
+      position: absolute;
+      left: 16px;
+      bottom: 17px;
+      z-index: 7;
+      padding: 7px 10px;
+      border-radius: 8px;
+      color: #647680;
+      background: rgba(255, 255, 255, 0.88);
+      font-size: 0.64rem;
+      box-shadow: 0 4px 14px rgba(20, 33, 43, 0.06);
+      pointer-events: none;
+    }
 
     .editor-backdrop {
       position: fixed;
@@ -252,6 +292,13 @@
 
     <div class="canvas-container" id="container">
       <canvas id="cadCanvas"></canvas>
+      <div class="canvas-hint">Rueda: zoom · Espacio + arrastrar: desplazar</div>
+      <div class="viewport-controls" aria-label="Controles del lienzo">
+        <button type="button" onclick="zoomOut()" aria-label="Alejar">−</button>
+        <button type="button" class="zoom-value" id="zoomValue" onclick="resetView()" title="Restablecer vista">100%</button>
+        <button type="button" onclick="zoomIn()" aria-label="Acercar">+</button>
+        <button type="button" onclick="resetView()" aria-label="Centrar vista" title="Centrar vista">⌂</button>
+      </div>
     </div>
   </div>
 
@@ -283,6 +330,15 @@
     const RENDER_SCALE = Math.max(2, window.devicePixelRatio || 1);
     let viewWidth = 0;
     let viewHeight = 0;
+    let viewX = 0;
+    let viewY = 0;
+    let viewZoom = 1;
+    let isPanning = false;
+    let spacePressed = false;
+    let panStartX = 0;
+    let panStartY = 0;
+    let panOriginX = 0;
+    let panOriginY = 0;
     let elements = [];
     let cajetin = {
       x: 0, y: 20, width: 220, height: 60,
@@ -308,6 +364,43 @@
       ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
 
       cajetin.x = viewWidth - cajetin.width - 20;
+      draw();
+    }
+
+    function screenToWorld(screenX, screenY) {
+      return {
+        x: (screenX - viewX) / viewZoom,
+        y: (screenY - viewY) / viewZoom
+      };
+    }
+
+    function updateZoomValue() {
+      document.getElementById('zoomValue').textContent = Math.round(viewZoom * 100) + '%';
+    }
+
+    function setZoomAt(newZoom, screenX, screenY) {
+      const clampedZoom = Math.max(0.35, Math.min(3, newZoom));
+      const worldPoint = screenToWorld(screenX, screenY);
+      viewZoom = clampedZoom;
+      viewX = screenX - worldPoint.x * viewZoom;
+      viewY = screenY - worldPoint.y * viewZoom;
+      updateZoomValue();
+      draw();
+    }
+
+    function zoomIn() {
+      setZoomAt(viewZoom * 1.2, viewWidth / 2, viewHeight / 2);
+    }
+
+    function zoomOut() {
+      setZoomAt(viewZoom / 1.2, viewWidth / 2, viewHeight / 2);
+    }
+
+    function resetView() {
+      viewX = 0;
+      viewY = 0;
+      viewZoom = 1;
+      updateZoomValue();
       draw();
     }
     window.addEventListener('resize', resizeCanvas);
@@ -450,10 +543,18 @@
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, viewWidth, viewHeight);
 
+      ctx.save();
+      ctx.translate(viewX, viewY);
+      ctx.scale(viewZoom, viewZoom);
+
       if (!isExporting) {
         ctx.fillStyle = '#bbb';
-        for (let x = 0; x < viewWidth; x += GRID) {
-          for (let y = 0; y < viewHeight; y += GRID) {
+        const startX = Math.floor((-viewX / viewZoom) / GRID) * GRID;
+        const startY = Math.floor((-viewY / viewZoom) / GRID) * GRID;
+        const endX = (-viewX + viewWidth) / viewZoom;
+        const endY = (-viewY + viewHeight) / viewZoom;
+        for (let x = startX; x <= endX; x += GRID) {
+          for (let y = startY; y <= endY; y += GRID) {
             ctx.fillRect(x, y, 1.5, 1.5);
           }
         }
@@ -519,6 +620,7 @@
       });
 
       drawCajetin();
+      ctx.restore();
     }
 
     function drawConnections() {
@@ -745,8 +847,22 @@
 
     canvas.addEventListener('mousedown', (e) => {
       const rect = canvas.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
+
+      if (e.button === 1 || spacePressed) {
+        e.preventDefault();
+        isPanning = true;
+        panStartX = e.clientX;
+        panStartY = e.clientY;
+        panOriginX = viewX;
+        panOriginY = viewY;
+        canvas.style.cursor = 'grabbing';
+        return;
+      }
+      const screenX = e.clientX - rect.left;
+      const screenY = e.clientY - rect.top;
+      const point = screenToWorld(screenX, screenY);
+      const mouseX = point.x;
+      const mouseY = point.y;
 
       if (mouseX >= cajetin.x && mouseX <= cajetin.x + cajetin.width &&
           mouseY >= cajetin.y && mouseY <= cajetin.y + cajetin.height) {
@@ -786,10 +902,20 @@
     });
 
     canvas.addEventListener('mousemove', (e) => {
+      if (isPanning) {
+        viewX = panOriginX + (e.clientX - panStartX);
+        viewY = panOriginY + (e.clientY - panStartY);
+        draw();
+        return;
+      }
+
       if (!selectedElement) return;
       const rect = canvas.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
+      const screenX = e.clientX - rect.left;
+      const screenY = e.clientY - rect.top;
+      const point = screenToWorld(screenX, screenY);
+      const mouseX = point.x;
+      const mouseY = point.y;
 
       if (isResizing) {
         if (selectedElement.type === 'LINEA_H' || selectedElement.type === 'ACOMETIDA') {
@@ -807,6 +933,11 @@
     });
 
     window.addEventListener('mouseup', () => {
+      if (isPanning) {
+        isPanning = false;
+        canvas.style.cursor = spacePressed ? 'grab' : 'default';
+      }
+
       if (isDragging && selectedElement && connectionRules[selectedElement.type]) {
         const result = findNearestCompatibleParent(selectedElement, true);
         // Solo cambia de padre al quedar razonablemente cerca de una salida compatible.
@@ -821,10 +952,38 @@
       isResizing = false;
     });
 
+    canvas.addEventListener('wheel', event => {
+      event.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const screenX = event.clientX - rect.left;
+      const screenY = event.clientY - rect.top;
+      const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+      setZoomAt(viewZoom * factor, screenX, screenY);
+    }, { passive: false });
+
+    window.addEventListener('keydown', event => {
+      if (event.code === 'Space' && document.activeElement.tagName !== 'INPUT' &&
+          document.activeElement.tagName !== 'TEXTAREA') {
+        spacePressed = true;
+        canvas.style.cursor = 'grab';
+        event.preventDefault();
+      }
+    });
+
+    window.addEventListener('keyup', event => {
+      if (event.code === 'Space') {
+        spacePressed = false;
+        if (!isPanning) canvas.style.cursor = 'default';
+      }
+    });
+
     canvas.addEventListener('dblclick', (e) => {
       const rect = canvas.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
+      const screenX = e.clientX - rect.left;
+      const screenY = e.clientY - rect.top;
+      const point = screenToWorld(screenX, screenY);
+      const mouseX = point.x;
+      const mouseY = point.y;
 
       if (mouseX >= cajetin.x && mouseX <= cajetin.x + cajetin.width &&
           mouseY >= cajetin.y && mouseY <= cajetin.y + cajetin.height) {
