@@ -1228,7 +1228,8 @@
       if (type === 'IGA' || type === 'GENERAL_FILA' || type === 'PIA') {
         const outputY = type === 'PIA' ? 100 : 60;
         ctx.beginPath();
-        ctx.moveTo(0, 15); ctx.lineTo(8, 27);
+        // Contacto magnetotérmico: la diagonal nace en el contacto inferior.
+        ctx.moveTo(0, 42); ctx.lineTo(8, 30);
         ctx.moveTo(0, 42); ctx.lineTo(0, outputY);
         ctx.stroke();
         ctx.beginPath(); ctx.arc(0, 15, 2, 0, Math.PI*2); ctx.fill();
