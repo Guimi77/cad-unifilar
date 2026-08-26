@@ -246,14 +246,81 @@
     }
     window.addEventListener('resize', resizeCanvas);
 
+    const connectionRules = {
+      IGA: ['ACOMETIDA'],
+      DIFERENCIAL: ['IGA', 'DIFERENCIAL'],
+      PIA: ['DIFERENCIAL']
+    };
+
+    function getOutputPort(el) {
+      if (el.type === 'ACOMETIDA') {
+        return { x: el.x + el.w / 2, y: el.y + 10 };
+      }
+      return { x: el.x, y: el.y + 60 };
+    }
+
+    function getInputPort(el) {
+      return { x: el.x, y: el.y };
+    }
+
+    function getCompatibleParents(type) {
+      const allowed = connectionRules[type] || [];
+      return elements.filter(el => allowed.includes(el.type));
+    }
+
+    function findNearestCompatibleParent(el, requireUpstream = true) {
+      const input = getInputPort(el);
+      let best = null;
+      let bestDistance = Infinity;
+
+      getCompatibleParents(el.type).forEach(candidate => {
+        if (candidate.id === el.id) return;
+        const output = getOutputPort(candidate);
+        if (requireUpstream && output.y >= input.y) return;
+        const distance = Math.hypot(input.x - output.x, input.y - output.y);
+        if (distance < bestDistance) {
+          best = candidate;
+          bestDistance = distance;
+        }
+      });
+
+      return { parent: best, distance: bestDistance };
+    }
+
+    function getAutomaticPlacement(type) {
+      if (type === 'ACOMETIDA') {
+        return { x: 100, y: 80, w: 220, h: 40, parent: null };
+      }
+
+      const allowed = connectionRules[type] || [];
+      const candidates = elements.filter(el => allowed.includes(el.type));
+      const parent = candidates.length ? candidates[candidates.length - 1] : null;
+
+      if (!parent) {
+        const sameType = elements.filter(el => el.type === type).length;
+        return { x: 120 + sameType * 80, y: 140 + sameType * 40, w: 100, h: 100, parent: null };
+      }
+
+      const output = getOutputPort(parent);
+      if (type === 'PIA') {
+        const siblings = elements.filter(el => el.type === 'PIA' && el.parentId === parent.id).length;
+        const offset = siblings === 0 ? 0 : Math.ceil(siblings / 2) * 80 * (siblings % 2 ? 1 : -1);
+        return { x: output.x + offset, y: output.y + 100, w: 100, h: 100, parent };
+      }
+
+      return { x: output.x, y: output.y + 80, w: 100, h: 100, parent };
+    }
+
     function addElement(type) {
+      const placement = getAutomaticPlacement(type);
       let elem = {
-        id: Date.now(),
+        id: Date.now() + Math.random(),
         type: type,
-        x: 100,
-        y: 100,
-        w: 100,
-        h: 100,
+        x: placement.x,
+        y: placement.y,
+        w: placement.w,
+        h: placement.h,
+        parentId: placement.parent ? placement.parent.id : null,
         text: getDefaultText(type)
       };
       elements.push(elem);
@@ -274,7 +341,11 @@
 
     function deleteSelected() {
       if (!selectedElement) return;
+      const deletedId = selectedElement.id;
       elements = elements.filter(el => el !== selectedElement);
+      elements.forEach(el => {
+        if (el.parentId === deletedId) el.parentId = null;
+      });
       selectedElement = null;
       draw();
     }
@@ -301,6 +372,8 @@
           }
         }
       }
+
+      drawConnections();
 
       elements.forEach(el => {
         ctx.save();
@@ -358,6 +431,38 @@
       });
 
       drawCajetin();
+    }
+
+    function drawConnections() {
+      ctx.save();
+      ctx.strokeStyle = '#253944';
+      ctx.lineWidth = 2;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+
+      elements.forEach(child => {
+        if (!child.parentId) return;
+        const parent = elements.find(el => el.id === child.parentId);
+        if (!parent) return;
+
+        const from = getOutputPort(parent);
+        const to = getInputPort(child);
+        const middleY = from.y + (to.y - from.y) / 2;
+
+        ctx.beginPath();
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(from.x, middleY);
+        ctx.lineTo(to.x, middleY);
+        ctx.lineTo(to.x, to.y);
+        ctx.stroke();
+
+        ctx.fillStyle = '#253944';
+        ctx.beginPath();
+        ctx.arc(from.x, from.y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      ctx.restore();
     }
 
     function drawAcometida(el, isExporting) {
@@ -567,6 +672,16 @@
     });
 
     window.addEventListener('mouseup', () => {
+      if (isDragging && selectedElement && connectionRules[selectedElement.type]) {
+        const result = findNearestCompatibleParent(selectedElement, true);
+        // Solo cambia de padre al quedar razonablemente cerca de una salida compatible.
+        if (result.parent && result.distance <= 240) {
+          selectedElement.parentId = result.parent.id;
+        } else if (!result.parent || result.distance > 320) {
+          selectedElement.parentId = null;
+        }
+        draw();
+      }
       isDragging = false;
       isResizing = false;
     });
@@ -653,10 +768,14 @@
           errores.push(nombre + ': sensibilidad ' + sensibilidad + ' mA; en vivienda debe ser como máximo 30 mA.');
         }
 
-        // Se toma como IGA aguas arriba el más próximo por encima del ID.
-        const igaAguasArriba = igas
-          .filter(iga => iga.y < dif.y)
-          .sort((a, b) => b.y - a.y)[0];
+        // La protección aguas arriba se obtiene de la conexión eléctrica real.
+        let parent = elements.find(el => el.id === dif.parentId);
+        const visited = new Set();
+        while (parent && parent.type !== 'IGA' && !visited.has(parent.id)) {
+          visited.add(parent.id);
+          parent = elements.find(el => el.id === parent.parentId);
+        }
+        const igaAguasArriba = parent && parent.type === 'IGA' ? parent : null;
         const igaA = igaAguasArriba ? parseAmperios(igaAguasArriba.text) : null;
 
         if (difA === null) {
@@ -671,7 +790,7 @@
           // Sin protección aguas arriba reconocible, se usa la suma de los PIAs
           // situados por debajo como comprobación conservadora de diseño.
           const sumaPias = pias
-            .filter(pia => pia.y > dif.y)
+            .filter(pia => pia.parentId === dif.id)
             .map(pia => parseAmperios(pia.text))
             .filter(value => value !== null)
             .reduce((sum, value) => sum + value, 0);
@@ -688,20 +807,22 @@
       });
 
       // Los ID en serie son admisibles únicamente con selectividad.
-      const idsOrdenados = [...diferenciales].sort((a, b) => a.y - b.y);
-      for (let i = 0; i < idsOrdenados.length; i++) {
-        for (let j = i + 1; j < idsOrdenados.length; j++) {
-          const superior = idsOrdenados[i];
-          const inferior = idsOrdenados[j];
-          if (Math.abs(superior.x - inferior.x) <= 40) {
-            avisos.push(
-              'Diferenciales en cascada detectados: debe justificarse la selectividad entre ambos (ITC-BT-17).'
-            );
-            i = idsOrdenados.length;
-            break;
-          }
-        }
+      const idEnCascada = diferenciales.find(dif => {
+        const parent = elements.find(el => el.id === dif.parentId);
+        return parent && parent.type === 'DIFERENCIAL';
+      });
+      if (idEnCascada) {
+        avisos.push(
+          'Diferenciales en cascada detectados: debe justificarse la selectividad entre ambos (ITC-BT-17).'
+        );
       }
+
+      const desconectados = elements.filter(el =>
+        connectionRules[el.type] && !el.parentId
+      );
+      desconectados.forEach(el => {
+        avisos.push(el.type + ': elemento sin alimentación aguas arriba.');
+      });
 
       const lineas = ['VALIDACIÓN REBT', ''];
       if (errores.length) {
@@ -719,7 +840,7 @@
         correctos.forEach(item => lineas.push('• ' + item));
         lineas.push('');
       }
-      lineas.push('Las relaciones aguas arriba/abajo se infieren por la posición vertical de los símbolos.');
+      lineas.push('Las comprobaciones se basan en las conexiones eléctricas reales del esquema.');
       alert(lineas.join('\n'));
     }
 
