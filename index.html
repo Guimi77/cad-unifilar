@@ -854,7 +854,11 @@
       ctx.fillStyle = '#000';
       ctx.font = 'bold 9px "Courier New"';
       ctx.textAlign = 'center';
-      ctx.fillText('CUADRO ELÉCTRICO GENERAL', cajetin.x + cajetin.width/2, cajetin.y + 14);
+      ctx.fillText(
+        cajetin.titulo.toUpperCase(),
+        cajetin.x + cajetin.width / 2,
+        cajetin.y + 14
+      );
 
       ctx.beginPath();
       ctx.moveTo(cajetin.x, cajetin.y + 22);
@@ -863,8 +867,7 @@
 
       ctx.textAlign = 'left';
       ctx.font = '8px "Courier New"';
-      ctx.fillText('TÍTULO: ' + cajetin.titulo, cajetin.x + 6, cajetin.y + 36);
-      ctx.fillText('DIRECCIÓN: ' + cajetin.dir, cajetin.x + 6, cajetin.y + 48);
+      ctx.fillText('DIRECCIÓN: ' + cajetin.dir, cajetin.x + 6, cajetin.y + 43);
     }
 
     canvas.addEventListener('mousedown', (e) => {
