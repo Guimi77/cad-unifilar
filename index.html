@@ -776,6 +776,21 @@
       createElement(type);
     }
 
+    function moveElementSubtree(rootId, deltaX, deltaY, visited = new Set()) {
+      if (visited.has(rootId)) return;
+      visited.add(rootId);
+
+      const root = elements.find(el => el.id === rootId);
+      if (root) {
+        root.x += deltaX;
+        root.y += deltaY;
+      }
+
+      elements
+        .filter(el => el.parentId === rootId)
+        .forEach(child => moveElementSubtree(child.id, deltaX, deltaY, visited));
+    }
+
     function createElement(type, forcedParent = null, downstreamIds = []) {
       const placement = getAutomaticPlacement(type, forcedParent);
       let elem = {
@@ -792,9 +807,14 @@
 
       if (type === 'GENERAL_FILA' && downstreamIds.length) {
         const downstreamSet = new Set(downstreamIds);
+        const minimumDifferentialY = elem.y + 140;
+
         elements.forEach(el => {
           if (downstreamSet.has(el.id) && el.type === 'DIFERENCIAL') {
             el.parentId = elem.id;
+            if (el.y < minimumDifferentialY) {
+              moveElementSubtree(el.id, 0, minimumDifferentialY - el.y);
+            }
           }
         });
       }
