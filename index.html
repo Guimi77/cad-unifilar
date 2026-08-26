@@ -979,8 +979,16 @@
       }
       // Mantiene abierta la biblioteca cuando el elemento aguas arriba
       // sigue seleccionado para añadir varios hijos consecutivos.
+      const isMobileView = window.matchMedia('(max-width: 900px)').matches;
       if (!preserveParentSelection) closeMobileLibrary();
-      fitViewToContent();
+
+      if (isMobileView && !(type === 'ACOMETIDA' && elements.length === 1)) {
+        // Si la biblioteca se cierra, su resize se ejecuta primero y después
+        // la cámara termina enfocando el elemento recién creado.
+        requestAnimationFrame(() => focusElementOnMobile(elem));
+      } else {
+        fitViewToContent();
+      }
     }
 
     function getDefaultText(type) {
@@ -1442,6 +1450,20 @@
       ));
       viewX = marginX - bounds.left * viewZoom;
       viewY = marginTop - bounds.top * viewZoom;
+      updateZoomValue();
+      draw();
+    }
+
+    function focusElementOnMobile(el) {
+      if (!el) return;
+      const bounds = getElementBounds(el);
+      const centerX = (bounds.left + bounds.right) / 2;
+      const centerY = (bounds.top + bounds.bottom) / 2;
+      const targetZoom = Math.max(0.8, Math.min(1.15, viewZoom));
+
+      viewZoom = targetZoom;
+      viewX = viewWidth / 2 - centerX * viewZoom;
+      viewY = viewHeight * 0.42 - centerY * viewZoom;
       updateZoomValue();
       draw();
     }
