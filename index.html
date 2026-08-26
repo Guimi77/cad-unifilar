@@ -32,6 +32,7 @@
   <header>
     <h1>⚡ CAD UNIFILAR - REBT NATIVO</h1>
     <div class="header-btns">
+      <button class="btn-hdr" onclick="validarREBT()">✓ VALIDAR REBT</button>
       <button class="btn-hdr btn-del" onclick="deleteSelected()">🗑️ ELIMINAR SELECCIÓN (SUPR)</button>
       <button class="btn-hdr" onclick="exportarPNG()">📥 EXPORTAR PNG</button>
       <button class="btn-hdr" onclick="editarCajetin()">⚙️ CAJETÍN</button>
@@ -444,6 +445,134 @@
         }
       });
     });
+
+    function parseAmperios(text) {
+      const match = String(text || '').replace(',', '.').match(/(\d+(?:\.\d+)?)\s*A\b/i);
+      return match ? parseFloat(match[1]) : null;
+    }
+
+    function parseMiliamperios(text) {
+      const match = String(text || '').replace(',', '.').match(/(\d+(?:\.\d+)?)\s*mA\b/i);
+      return match ? parseFloat(match[1]) : null;
+    }
+
+    function validarREBT() {
+      const errores = [];
+      const avisos = [];
+      const correctos = [];
+
+      const acometidas = elements.filter(el => el.type === 'ACOMETIDA');
+      const igas = elements.filter(el => el.type === 'IGA');
+      const diferenciales = elements.filter(el => el.type === 'DIFERENCIAL');
+      const pias = elements.filter(el => el.type === 'PIA');
+
+      // Regla de coherencia del documento: un esquema de suministro simple
+      // debe contener una única acometida.
+      if (acometidas.length === 0) {
+        avisos.push('No se ha dibujado ninguna acometida.');
+      } else if (acometidas.length > 1) {
+        errores.push('Hay ' + acometidas.length + ' acometidas. Este esquema admite una única acometida.');
+      } else {
+        correctos.push('Acometida única.');
+      }
+
+      if (diferenciales.length === 0 && pias.length > 0) {
+        errores.push('Hay circuitos PIA sin ningún diferencial representado.');
+      }
+
+      // En viviendas: un diferencial de 30 mA como máximo por cada cinco circuitos.
+      if (pias.length > 0 && diferenciales.length > 0) {
+        const minimoIDs = Math.ceil(pias.length / 5);
+        if (diferenciales.length < minimoIDs) {
+          errores.push(
+            'Hay ' + pias.length + ' circuitos y ' + diferenciales.length +
+            ' diferencial(es). ITC-BT-25 exige al menos uno por cada cinco circuitos.'
+          );
+        } else {
+          correctos.push('Número de diferenciales suficiente para ' + pias.length + ' circuitos.');
+        }
+      }
+
+      diferenciales.forEach((dif, index) => {
+        const difA = parseAmperios(dif.text);
+        const sensibilidad = parseMiliamperios(dif.text);
+        const nombre = 'ID ' + (index + 1);
+
+        if (sensibilidad === null) {
+          avisos.push(nombre + ': no se reconoce la sensibilidad en mA.');
+        } else if (sensibilidad > 30) {
+          errores.push(nombre + ': sensibilidad ' + sensibilidad + ' mA; en vivienda debe ser como máximo 30 mA.');
+        }
+
+        // Se toma como IGA aguas arriba el más próximo por encima del ID.
+        const igaAguasArriba = igas
+          .filter(iga => iga.y < dif.y)
+          .sort((a, b) => b.y - a.y)[0];
+        const igaA = igaAguasArriba ? parseAmperios(igaAguasArriba.text) : null;
+
+        if (difA === null) {
+          avisos.push(nombre + ': no se reconoce su intensidad nominal en A.');
+        } else if (igaA !== null) {
+          if (difA < igaA) {
+            errores.push(nombre + ': ' + difA + ' A es inferior al IGA aguas arriba de ' + igaA + ' A.');
+          } else {
+            correctos.push(nombre + ' protegido por IGA de ' + igaA + ' A.');
+          }
+        } else {
+          // Sin protección aguas arriba reconocible, se usa la suma de los PIAs
+          // situados por debajo como comprobación conservadora de diseño.
+          const sumaPias = pias
+            .filter(pia => pia.y > dif.y)
+            .map(pia => parseAmperios(pia.text))
+            .filter(value => value !== null)
+            .reduce((sum, value) => sum + value, 0);
+
+          if (difA !== null && sumaPias > difA) {
+            avisos.push(
+              nombre + ': los PIAs aguas abajo suman ' + sumaPias +
+              ' A y no se reconoce un IGA aguas arriba que limite la corriente a ' + difA + ' A.'
+            );
+          } else if (!igaAguasArriba) {
+            avisos.push(nombre + ': no se reconoce un IGA aguas arriba.');
+          }
+        }
+      });
+
+      // Los ID en serie son admisibles únicamente con selectividad.
+      const idsOrdenados = [...diferenciales].sort((a, b) => a.y - b.y);
+      for (let i = 0; i < idsOrdenados.length; i++) {
+        for (let j = i + 1; j < idsOrdenados.length; j++) {
+          const superior = idsOrdenados[i];
+          const inferior = idsOrdenados[j];
+          if (Math.abs(superior.x - inferior.x) <= 40) {
+            avisos.push(
+              'Diferenciales en cascada detectados: debe justificarse la selectividad entre ambos (ITC-BT-17).'
+            );
+            i = idsOrdenados.length;
+            break;
+          }
+        }
+      }
+
+      const lineas = ['VALIDACIÓN REBT', ''];
+      if (errores.length) {
+        lineas.push('ERRORES');
+        errores.forEach(item => lineas.push('• ' + item));
+        lineas.push('');
+      }
+      if (avisos.length) {
+        lineas.push('ADVERTENCIAS');
+        avisos.forEach(item => lineas.push('• ' + item));
+        lineas.push('');
+      }
+      if (correctos.length) {
+        lineas.push('COMPROBACIONES CORRECTAS');
+        correctos.forEach(item => lineas.push('• ' + item));
+        lineas.push('');
+      }
+      lineas.push('Las relaciones aguas arriba/abajo se infieren por la posición vertical de los símbolos.');
+      alert(lineas.join('\n'));
+    }
 
     function editarCajetin() {
       let t = prompt('Título del Cuadro:', cajetin.titulo);
