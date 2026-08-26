@@ -298,6 +298,7 @@
       <div class="sidebar-title">Símbolos normalizados</div>
       <button class="btn-lib" onclick="addElement('ACOMETIDA')">Acometida</button>
       <button class="btn-lib" onclick="addElement('IGA')">IGA / ICP</button>
+      <button class="btn-lib" onclick="addElement('GENERAL_FILA')">General de fila</button>
       <button class="btn-lib" onclick="addElement('DIFERENCIAL')">Diferencial (ID)</button>
       <button class="btn-lib" onclick="addElement('SOBRETENSION')">Protección sobretensiones</button>
       <button class="btn-lib" onclick="addElement('PIA')">Magnetotérmico (PIA)</button>
@@ -462,7 +463,8 @@
 
     const connectionRules = {
       IGA: ['ACOMETIDA'],
-      DIFERENCIAL: ['IGA'],
+      GENERAL_FILA: ['IGA'],
+      DIFERENCIAL: ['IGA', 'GENERAL_FILA'],
       SOBRETENSION: ['IGA'],
       PIA: ['DIFERENCIAL']
     };
@@ -517,6 +519,29 @@
       }
 
       const output = getOutputPort(parent);
+      if (type === 'GENERAL_FILA') {
+        const siblings = elements.filter(
+          el => el.type === 'GENERAL_FILA' && el.parentId === parent.id
+        );
+        const spacing = 140;
+        let branchIndex = 0;
+        let freeX = output.x;
+
+        while (branchIndex < 100) {
+          const offset = branchIndex === 0
+            ? 0
+            : Math.ceil(branchIndex / 2) * spacing * (branchIndex % 2 ? 1 : -1);
+          const candidateX = output.x + offset;
+          if (!siblings.some(el => Math.abs(el.x - candidateX) < spacing * 0.75)) {
+            freeX = candidateX;
+            break;
+          }
+          branchIndex++;
+        }
+
+        return { x: freeX, y: output.y + 80, w: 100, h: 100, parent };
+      }
+
       if (type === 'DIFERENCIAL') {
         const siblings = elements.filter(
           el => el.type === 'DIFERENCIAL' && el.parentId === parent.id
@@ -577,6 +602,7 @@
       switch(type) {
         case 'ACOMETIDA': return '4x16mm²\n(15 m)\nDesde contador';
         case 'IGA': return '4P\n40A';
+        case 'GENERAL_FILA': return '4P\n40A';
         case 'DIFERENCIAL': return '4P\n40A\n30mA';
         case 'SOBRETENSION': return 'SPD T2\nUc 275V\nImax 40kA';
         case 'PIA': {
@@ -665,7 +691,7 @@
         else if (el.type === 'ACOMETIDA') {
           drawAcometida(el, isExporting);
         }
-        else if (['IGA', 'DIFERENCIAL', 'SOBRETENSION', 'PIA', 'TIERRA'].includes(el.type)) {
+        else if (['IGA', 'GENERAL_FILA', 'DIFERENCIAL', 'SOBRETENSION', 'PIA', 'TIERRA'].includes(el.type)) {
           drawSymbol(el.type, el.text);
         }
         else if (el.type === 'TEXTO') {
@@ -796,7 +822,7 @@
 
       ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 15); ctx.stroke();
 
-      if (type === 'IGA' || type === 'PIA') {
+      if (type === 'IGA' || type === 'GENERAL_FILA' || type === 'PIA') {
         const outputY = type === 'PIA' ? 100 : 60;
         ctx.beginPath();
         ctx.moveTo(0, 15); ctx.lineTo(8, 27);
@@ -1225,6 +1251,7 @@
 
       const acometidas = elements.filter(el => el.type === 'ACOMETIDA');
       const igas = elements.filter(el => el.type === 'IGA');
+      const generalesFila = elements.filter(el => el.type === 'GENERAL_FILA');
       const diferenciales = elements.filter(el => el.type === 'DIFERENCIAL');
       const sobretensiones = elements.filter(el => el.type === 'SOBRETENSION');
       const pias = elements.filter(el => el.type === 'PIA');
@@ -1280,23 +1307,32 @@
           errores.push(nombre + ': sensibilidad ' + sensibilidad + ' mA; en vivienda debe ser como máximo 30 mA.');
         }
 
-        // La protección aguas arriba se obtiene de la conexión eléctrica real.
+        // Se toma la primera protección magnetotérmica real aguas arriba:
+        // general de fila cuando existe; en caso contrario, el IGA.
         let parent = elements.find(el => el.id === dif.parentId);
         const visited = new Set();
-        while (parent && parent.type !== 'IGA' && !visited.has(parent.id)) {
+        while (parent && !['IGA', 'GENERAL_FILA'].includes(parent.type) && !visited.has(parent.id)) {
           visited.add(parent.id);
           parent = elements.find(el => el.id === parent.parentId);
         }
-        const igaAguasArriba = parent && parent.type === 'IGA' ? parent : null;
-        const igaA = igaAguasArriba ? parseAmperios(igaAguasArriba.text) : null;
+        const proteccionAguasArriba =
+          parent && ['IGA', 'GENERAL_FILA'].includes(parent.type) ? parent : null;
+        const proteccionA = proteccionAguasArriba
+          ? parseAmperios(proteccionAguasArriba.text)
+          : null;
+        const proteccionNombre = proteccionAguasArriba &&
+          proteccionAguasArriba.type === 'GENERAL_FILA' ? 'general de fila' : 'IGA';
 
         if (difA === null) {
           avisos.push(nombre + ': no se reconoce su intensidad nominal en A.');
-        } else if (igaA !== null) {
-          if (difA < igaA) {
-            errores.push(nombre + ': ' + difA + ' A es inferior al IGA aguas arriba de ' + igaA + ' A.');
+        } else if (proteccionA !== null) {
+          if (difA < proteccionA) {
+            errores.push(
+              nombre + ': ' + difA + ' A es inferior al ' +
+              proteccionNombre + ' aguas arriba de ' + proteccionA + ' A.'
+            );
           } else {
-            correctos.push(nombre + ' protegido por IGA de ' + igaA + ' A.');
+            correctos.push(nombre + ' protegido por ' + proteccionNombre + ' de ' + proteccionA + ' A.');
           }
         } else {
           // Sin protección aguas arriba reconocible, se usa la suma de los PIAs
@@ -1312,9 +1348,24 @@
               nombre + ': los PIAs aguas abajo suman ' + sumaPias +
               ' A y no se reconoce un IGA aguas arriba que limite la corriente a ' + difA + ' A.'
             );
-          } else if (!igaAguasArriba) {
-            avisos.push(nombre + ': no se reconoce un IGA aguas arriba.');
+          } else if (!proteccionAguasArriba) {
+            avisos.push(nombre + ': no se reconoce protección magnetotérmica aguas arriba.');
           }
+        }
+      });
+
+      generalesFila.forEach((general, index) => {
+        const parent = elements.find(el => el.id === general.parentId);
+        const generalA = parseAmperios(general.text);
+        const igaA = parent && parent.type === 'IGA' ? parseAmperios(parent.text) : null;
+
+        if (!parent || parent.type !== 'IGA') {
+          errores.push('General de fila ' + (index + 1) + ': debe estar conectado aguas abajo del IGA.');
+        } else if (generalA !== null && igaA !== null && generalA > igaA) {
+          avisos.push(
+            'General de fila ' + (index + 1) + ': su intensidad de ' + generalA +
+            ' A supera la del IGA de ' + igaA + ' A.'
+          );
         }
       });
 
@@ -1399,6 +1450,13 @@
           { key: 'amps', label: 'Intensidad', placeholder: '40A', value: '40A' }
         ]
       },
+      GENERAL_FILA: {
+        title: 'Editar general de fila',
+        fields: [
+          { key: 'poles', label: 'Número de polos', placeholder: '4P', value: '4P' },
+          { key: 'amps', label: 'Intensidad', placeholder: '40A', value: '40A' }
+        ]
+      },
       DIFERENCIAL: {
         title: 'Editar diferencial',
         fields: [
@@ -1451,7 +1509,7 @@
           origin: lines[2] || 'Desde contador'
         };
       }
-      if (el.type === 'IGA') return { poles: lines[0], amps: lines[1] };
+      if (el.type === 'IGA' || el.type === 'GENERAL_FILA') return { poles: lines[0], amps: lines[1] };
       if (el.type === 'DIFERENCIAL') return { poles: lines[0], amps: lines[1], sensitivity: lines[2] };
       if (el.type === 'SOBRETENSION') return { spdType: lines[0], uc: lines[1], imax: lines[2] };
       if (el.type === 'PIA') {
@@ -1533,7 +1591,7 @@
         const distance = readField('distance', '15 m').replace(/^\(|\)$/g, '');
         const origin = readField('origin', 'Desde contador');
         editingElement.text = poles + 'x' + section + '\n(' + distance + ')\n' + origin;
-      } else if (type === 'IGA') {
+      } else if (type === 'IGA' || type === 'GENERAL_FILA') {
         editingElement.text = [readField('poles', '4P'), readField('amps', '40A')].join('\n');
       } else if (type === 'DIFERENCIAL') {
         editingElement.text = [readField('poles', '4P'), readField('amps', '40A'), readField('sensitivity', '30mA')].join('\n');
