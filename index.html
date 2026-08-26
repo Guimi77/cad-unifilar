@@ -487,11 +487,26 @@
       if (type === 'DIFERENCIAL') {
         const siblings = elements.filter(
           el => el.type === 'DIFERENCIAL' && el.parentId === parent.id
-        ).length;
-        const offset = siblings === 0
-          ? 0
-          : Math.ceil(siblings / 2) * 120 * (siblings % 2 ? 1 : -1);
-        return { x: output.x + offset, y: output.y + 80, w: 100, h: 100, parent };
+        );
+        const spacing = 120;
+        let branchIndex = 0;
+        let freeX = output.x;
+
+        // Prueba centro, derecha, izquierda y continúa hacia fuera.
+        while (branchIndex < 100) {
+          const offset = branchIndex === 0
+            ? 0
+            : Math.ceil(branchIndex / 2) * spacing * (branchIndex % 2 ? 1 : -1);
+          const candidateX = output.x + offset;
+          const occupied = siblings.some(el => Math.abs(el.x - candidateX) < spacing * 0.75);
+          if (!occupied) {
+            freeX = candidateX;
+            break;
+          }
+          branchIndex++;
+        }
+
+        return { x: freeX, y: output.y + 80, w: 100, h: 100, parent };
       }
 
       if (type === 'SOBRETENSION') {
@@ -845,6 +860,19 @@
     }
 
     function drawCajetin() {
+      // Ajusta la anchura al contenido manteniendo fijo el borde derecho.
+      ctx.font = 'bold 9px "Courier New"';
+      const titleWidth = ctx.measureText(cajetin.titulo.toUpperCase()).width;
+      ctx.font = '8px "Courier New"';
+      const addressWidth = ctx.measureText('DIRECCIÓN: ' + cajetin.dir).width;
+      const requiredWidth = Math.ceil(Math.max(220, titleWidth + 24, addressWidth + 18));
+
+      if (requiredWidth !== cajetin.width) {
+        const rightEdge = cajetin.x + cajetin.width;
+        cajetin.width = requiredWidth;
+        cajetin.x = rightEdge - requiredWidth;
+      }
+
       ctx.fillStyle = '#fff';
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 2;
@@ -965,11 +993,10 @@
 
       if (isDragging && selectedElement && connectionRules[selectedElement.type]) {
         const result = findNearestCompatibleParent(selectedElement, true);
-        // Solo cambia de padre al quedar razonablemente cerca de una salida compatible.
-        if (result.parent && result.distance <= 240) {
+        // La distancia no rompe una conexión existente. Si hay un padre
+        // compatible aguas arriba, la unión se conserva o cambia a ese padre.
+        if (result.parent) {
           selectedElement.parentId = result.parent.id;
-        } else if (!result.parent || result.distance > 320) {
-          selectedElement.parentId = null;
         }
         draw();
       }
