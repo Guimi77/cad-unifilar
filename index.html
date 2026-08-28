@@ -567,7 +567,7 @@
     let panOriginY = 0;
     let elements = [];
     let cajetin = {
-      x: 0, y: 20, width: 220, height: 60,
+      x: 0, y: 20, width: 240, height: 68,
       titulo: 'Cuadro Principal',
       dir: 'c/ Sa Pansa 24'
     };
@@ -1209,7 +1209,7 @@
         ctx.setLineDash([]);
       }
 
-      drawCajetin();
+      drawCajetin(isExporting);
       ctx.restore();
     }
 
@@ -1420,13 +1420,28 @@
       }
     }
 
-    function drawCajetin() {
+    function roundedRectPath(x, y, width, height, radius) {
+      const r = Math.min(radius, width / 2, height / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + width - r, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+      ctx.lineTo(x + width, y + height - r);
+      ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+      ctx.lineTo(x + r, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+
+    function drawCajetin(isExporting = false) {
       // Ajusta la anchura al contenido manteniendo fijo el borde derecho.
-      ctx.font = 'bold 9px "Courier New"';
-      const titleWidth = ctx.measureText(cajetin.titulo.toUpperCase()).width;
-      ctx.font = '8px "Courier New"';
-      const addressWidth = ctx.measureText('DIRECCIÓN: ' + cajetin.dir).width;
-      const requiredWidth = Math.ceil(Math.max(220, titleWidth + 24, addressWidth + 18));
+      ctx.font = '700 11px Inter, Arial, sans-serif';
+      const titleWidth = ctx.measureText(cajetin.titulo).width;
+      ctx.font = '500 9px Inter, Arial, sans-serif';
+      const addressWidth = ctx.measureText(cajetin.dir).width;
+      const requiredWidth = Math.ceil(Math.max(240, titleWidth + 46, addressWidth + 76));
 
       if (requiredWidth !== cajetin.width) {
         const rightEdge = cajetin.x + cajetin.width;
@@ -1434,29 +1449,51 @@
         cajetin.x = rightEdge - requiredWidth;
       }
 
-      ctx.fillStyle = '#fff';
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = 2;
-      ctx.fillRect(cajetin.x, cajetin.y, cajetin.width, cajetin.height);
-      ctx.strokeRect(cajetin.x, cajetin.y, cajetin.width, cajetin.height);
-
-      ctx.fillStyle = '#000';
-      ctx.font = 'bold 9px "Courier New"';
-      ctx.textAlign = 'center';
-      ctx.fillText(
-        cajetin.titulo.toUpperCase(),
-        cajetin.x + cajetin.width / 2,
-        cajetin.y + 14
-      );
-
-      ctx.beginPath();
-      ctx.moveTo(cajetin.x, cajetin.y + 22);
-      ctx.lineTo(cajetin.x + cajetin.width, cajetin.y + 22);
+      ctx.save();
+      if (!isExporting) {
+        ctx.shadowColor = 'rgba(20, 45, 54, 0.16)';
+        ctx.shadowBlur = 12;
+        ctx.shadowOffsetY = 4;
+      }
+      roundedRectPath(cajetin.x, cajetin.y, cajetin.width, cajetin.height, 7);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.shadowColor = 'transparent';
+      ctx.strokeStyle = '#24414a';
+      ctx.lineWidth = 1.25;
       ctx.stroke();
 
+      // Cabecera suave y acento corporativo, sin perder el aspecto técnico.
+      ctx.save();
+      roundedRectPath(cajetin.x, cajetin.y, cajetin.width, cajetin.height, 7);
+      ctx.clip();
+      ctx.fillStyle = '#eaf5f6';
+      ctx.fillRect(cajetin.x, cajetin.y, cajetin.width, 36);
+      ctx.fillStyle = '#087e8b';
+      ctx.fillRect(cajetin.x, cajetin.y, 6, cajetin.height);
+      ctx.restore();
+
+      ctx.fillStyle = '#17343d';
+      ctx.font = '700 11px Inter, Arial, sans-serif';
       ctx.textAlign = 'left';
-      ctx.font = '8px "Courier New"';
-      ctx.fillText('DIRECCIÓN: ' + cajetin.dir, cajetin.x + 6, cajetin.y + 43);
+      ctx.textBaseline = 'middle';
+      ctx.fillText(cajetin.titulo, cajetin.x + 20, cajetin.y + 18);
+
+      ctx.strokeStyle = '#c7dadd';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cajetin.x + 6, cajetin.y + 36);
+      ctx.lineTo(cajetin.x + cajetin.width, cajetin.y + 36);
+      ctx.stroke();
+
+      ctx.fillStyle = '#6b7e86';
+      ctx.font = '700 7px Inter, Arial, sans-serif';
+      ctx.fillText('DIRECCIÓN', cajetin.x + 20, cajetin.y + 52);
+      ctx.fillStyle = '#253944';
+      ctx.font = '500 9px Inter, Arial, sans-serif';
+      ctx.fillText(cajetin.dir, cajetin.x + 72, cajetin.y + 52);
+      ctx.textBaseline = 'alphabetic';
+      ctx.restore();
     }
 
     function getElementBounds(el) {
