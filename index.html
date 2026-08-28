@@ -671,6 +671,39 @@
       return { x: el.x, y: el.y };
     }
 
+    function getConnectionGroup(child) {
+      if (child.type === 'SOBRETENSION') return [child];
+      const groupedTypes = child.type === 'PIA'
+        ? ['PIA']
+        : (['DIFERENCIAL', 'GENERAL_FILA'].includes(child.type)
+          ? ['DIFERENCIAL', 'GENERAL_FILA']
+          : null);
+      if (!groupedTypes) return [child];
+      return elements.filter(el =>
+        el.parentId === child.parentId && groupedTypes.includes(el.type)
+      );
+    }
+
+    function getSharedConnectionY(child) {
+      const parent = elements.find(el => el.id === child.parentId);
+      if (!parent) return child.y;
+      const from = getOutputPort(parent);
+      const connectionYs = getConnectionGroup(child).map(sibling =>
+        from.y + (Number.isFinite(sibling.connectionOffsetY)
+          ? sibling.connectionOffsetY
+          : Math.max(30, (sibling.y - from.y) / 2))
+      );
+      let sharedY = connectionYs.length
+        ? Math.min(...connectionYs)
+        : from.y + 30;
+
+      const protectedBranchY = getIgaDownstreamBranchY(parent);
+      if (protectedBranchY !== null && child.type !== 'SOBRETENSION') {
+        sharedY = Math.max(sharedY, protectedBranchY);
+      }
+      return sharedY;
+    }
+
     function getCompatibleParents(type) {
       const allowed = connectionRules[type] || [];
       return elements.filter(el => allowed.includes(el.type));
@@ -1194,10 +1227,7 @@
 
         const from = getOutputPort(parent);
         const to = getInputPort(child);
-        const offsetY = Number.isFinite(child.connectionOffsetY)
-          ? child.connectionOffsetY
-          : Math.max(30, (to.y - from.y) / 2);
-        const middleY = from.y + offsetY;
+        const middleY = getSharedConnectionY(child);
 
         ctx.beginPath();
         ctx.moveTo(from.x, from.y);
@@ -1541,11 +1571,7 @@
         const parent = elements.find(el => el.id === child.parentId);
         if (!parent) return;
 
-        const from = getOutputPort(parent);
-        const offsetY = Number.isFinite(child.connectionOffsetY)
-          ? child.connectionOffsetY
-          : Math.max(30, (origin.y - from.y) / 2);
-        const connectionY = from.y + offsetY;
+        const connectionY = getSharedConnectionY(child);
 
         // La entrada del símbolo nunca puede quedar por encima de su línea
         // horizontal de derivación. Si se mueve un grupo, el límite más
@@ -1716,8 +1742,17 @@
       }
 
       if (isDragging && dragStartWorld) {
-        const deltaX = Math.round((mouseX - dragStartWorld.x) / GRID) * GRID;
-        const requestedDeltaY = Math.round((mouseY - dragStartWorld.y) / GRID) * GRID;
+        const anchorOrigin = selectedElement && groupOrigins.get(selectedElement.id)
+          ? groupOrigins.get(selectedElement.id)
+          : groupOrigins.values().next().value;
+        const rawDeltaX = mouseX - dragStartWorld.x;
+        const rawDeltaY = mouseY - dragStartWorld.y;
+        const deltaX = anchorOrigin
+          ? Math.round((anchorOrigin.x + rawDeltaX) / GRID) * GRID - anchorOrigin.x
+          : Math.round(rawDeltaX / GRID) * GRID;
+        const requestedDeltaY = anchorOrigin
+          ? Math.round((anchorOrigin.y + rawDeltaY) / GRID) * GRID - anchorOrigin.y
+          : Math.round(rawDeltaY / GRID) * GRID;
         const deltaY = clampGroupDeltaYToConnection(requestedDeltaY);
         elements.forEach(el => {
           const origin = groupOrigins.get(el.id);
