@@ -1486,6 +1486,31 @@
              bounds.bottom >= top && bounds.top <= bottom;
     }
 
+    function clampGroupDeltaYToConnection(deltaY) {
+      let minimumDeltaY = -Infinity;
+
+      groupOrigins.forEach((origin, id) => {
+        const child = elements.find(el => el.id === id);
+        if (!child || !child.parentId || selectedIds.has(child.parentId)) return;
+
+        const parent = elements.find(el => el.id === child.parentId);
+        if (!parent) return;
+
+        const from = getOutputPort(parent);
+        const offsetY = Number.isFinite(child.connectionOffsetY)
+          ? child.connectionOffsetY
+          : Math.max(30, (origin.y - from.y) / 2);
+        const connectionY = from.y + offsetY;
+
+        // La entrada del símbolo nunca puede quedar por encima de su línea
+        // horizontal de derivación. Si se mueve un grupo, el límite más
+        // restrictivo conserva además todas sus posiciones relativas.
+        minimumDeltaY = Math.max(minimumDeltaY, connectionY - origin.y);
+      });
+
+      return Math.max(deltaY, minimumDeltaY);
+    }
+
     canvas.addEventListener('mousedown', (e) => {
       const rect = canvas.getBoundingClientRect();
 
@@ -1647,7 +1672,8 @@
 
       if (isDragging && dragStartWorld) {
         const deltaX = Math.round((mouseX - dragStartWorld.x) / GRID) * GRID;
-        const deltaY = Math.round((mouseY - dragStartWorld.y) / GRID) * GRID;
+        const requestedDeltaY = Math.round((mouseY - dragStartWorld.y) / GRID) * GRID;
+        const deltaY = clampGroupDeltaYToConnection(requestedDeltaY);
         elements.forEach(el => {
           const origin = groupOrigins.get(el.id);
           if (!origin) return;
