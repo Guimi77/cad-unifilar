@@ -676,6 +676,15 @@
       return elements.filter(el => allowed.includes(el.type));
     }
 
+    function getIgaDownstreamBranchY(parent) {
+      if (!parent || parent.type !== 'IGA') return null;
+      const spds = elements.filter(el =>
+        el.type === 'SOBRETENSION' && el.parentId === parent.id
+      );
+      if (!spds.length) return null;
+      return Math.max(...spds.map(spd => spd.y + 80));
+    }
+
     function findNearestCompatibleParent(el, requireUpstream = true) {
       const input = getInputPort(el);
       let best = null;
@@ -730,7 +739,9 @@
           branchIndex++;
         }
 
-        return { x: freeX, y: output.y + 80, w: 100, h: 100, parent };
+        const protectedBranchY = getIgaDownstreamBranchY(parent);
+        const y = protectedBranchY === null ? output.y + 80 : protectedBranchY + 80;
+        return { x: freeX, y, w: 100, h: 100, parent };
       }
 
       if (type === 'DIFERENCIAL') {
@@ -755,11 +766,13 @@
           branchIndex++;
         }
 
-        return { x: freeX, y: output.y + 80, w: 100, h: 100, parent };
+        const protectedBranchY = getIgaDownstreamBranchY(parent);
+        const y = protectedBranchY === null ? output.y + 80 : protectedBranchY + 80;
+        return { x: freeX, y, w: 100, h: 100, parent };
       }
 
       if (type === 'SOBRETENSION') {
-        return { x: output.x + 120, y: output.y + 80, w: 100, h: 100, parent };
+        return { x: output.x + 120, y: output.y + 50, w: 100, h: 100, parent };
       }
 
       if (type === 'PIA') {
@@ -870,6 +883,16 @@
         }
       }
 
+      if (type === 'SOBRETENSION') {
+        const existingSpd = elements.find(el => el.type === 'SOBRETENSION');
+        if (existingSpd) {
+          selectedElement = existingSpd;
+          selectedIds = new Set([existingSpd.id]);
+          draw();
+          return;
+        }
+      }
+
       if (type === 'DIFERENCIAL') {
         const selectedProtection = elements.find(el =>
           selectedIds.has(el.id) && ['IGA', 'GENERAL_FILA'].includes(el.type)
@@ -955,6 +978,28 @@
         text: getDefaultText(type)
       };
       elements.push(elem);
+
+      if (placement.parent && ['DIFERENCIAL', 'GENERAL_FILA'].includes(type)) {
+        const protectedBranchY = getIgaDownstreamBranchY(placement.parent);
+        if (protectedBranchY !== null) {
+          elem.connectionOffsetY = protectedBranchY - getOutputPort(placement.parent).y;
+        }
+      }
+
+      if (type === 'SOBRETENSION' && placement.parent) {
+        const igaOutput = getOutputPort(placement.parent);
+        const protectedBranchY = elem.y + 80;
+        const minimumChildY = protectedBranchY + 80;
+
+        elements.forEach(child => {
+          if (child.id === elem.id || child.parentId !== placement.parent.id ||
+              !['DIFERENCIAL', 'GENERAL_FILA'].includes(child.type)) return;
+          if (child.y < minimumChildY) {
+            moveElementSubtree(child.id, 0, minimumChildY - child.y);
+          }
+          child.connectionOffsetY = protectedBranchY - igaOutput.y;
+        });
+      }
 
       if (type === 'GENERAL_FILA' && downstreamIds.length) {
         const downstreamSet = new Set(downstreamIds);
@@ -1266,7 +1311,7 @@
         ctx.fillText('T', 17, 28);
       }
       else if (type === 'SOBRETENSION') {
-        // Protector contra sobretensiones (SPD) en derivación.
+        // Protector contra sobretensiones (SPD) en derivación propia bajo el IGA.
         ctx.beginPath();
         ctx.moveTo(0, 15);
         ctx.lineTo(0, 20);
@@ -1936,7 +1981,7 @@
         sobretensiones.forEach((spd, index) => {
           const parent = elements.find(el => el.id === spd.parentId);
           if (!parent || parent.type !== 'IGA') {
-            errores.push('SPD ' + (index + 1) + ': debe conectarse en derivación aguas abajo del IGA.');
+            errores.push('SPD ' + (index + 1) + ': debe conectarse inmediatamente aguas abajo del IGA.');
           } else {
             correctos.push('SPD ' + (index + 1) + ' conectado después del IGA.');
           }
