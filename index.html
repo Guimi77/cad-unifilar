@@ -447,7 +447,9 @@
         <button class="btn-lib" onclick="addElement('IGA')">IGA / ICP</button>
         <button class="btn-lib" onclick="addElement('GENERAL_FILA')">General de fila</button>
         <button class="btn-lib" onclick="addElement('DIFERENCIAL')">Diferencial (ID)</button>
-        <button class="btn-lib" onclick="addElement('SOBRETENSION')">Protección sobretensiones</button>
+        <button class="btn-lib" onclick="addElement('SOBRETENSION_TRANSITORIA')">Sobretensiones transitorias</button>
+        <button class="btn-lib" onclick="addElement('SOBRETENSION_PERMANENTE')">Sobretensiones permanentes</button>
+        <button class="btn-lib" onclick="addElement('SOBRETENSION_COMBINADA')">Protección combinada P+T</button>
         <button class="btn-lib" onclick="addElement('PIA')">Magnetotérmico (PIA)</button>
         <button class="btn-lib" onclick="addElement('TIERRA')">Toma de tierra</button>
         <button class="btn-lib" onclick="addElement('TEXTO')">Nota de texto</button>
@@ -911,6 +913,16 @@
     });
 
     function addElement(type) {
+      if (type.startsWith('SOBRETENSION_')) {
+        const surgeTypes = {
+          SOBRETENSION_TRANSITORIA: 'Transitorias',
+          SOBRETENSION_PERMANENTE: 'Permanentes',
+          SOBRETENSION_COMBINADA: 'Combinada P+T'
+        };
+        addSurgeProtection(surgeTypes[type]);
+        return;
+      }
+
       if (type === 'ACOMETIDA') {
         const existingSupply = elements.find(el => el.type === 'ACOMETIDA');
         if (existingSupply) {
@@ -994,6 +1006,38 @@
       }
 
       createElement(type);
+    }
+
+    function addSurgeProtection(surgeType) {
+      const existingSpd = elements.find(el => el.type === 'SOBRETENSION');
+      if (existingSpd) {
+        selectedElement = existingSpd;
+        selectedIds = new Set([existingSpd.id]);
+        openTextEditor(existingSpd);
+        return;
+      }
+
+      let iga = elements.find(el => el.type === 'IGA');
+      if (!iga) {
+        const supply = elements.find(el => el.type === 'ACOMETIDA');
+        iga = createElement('IGA', supply || null);
+      }
+
+      const spd = createElement('SOBRETENSION', iga);
+      spd.text = [surgeType, '4P', '40A', '6kA'].join('\n');
+
+      if (surgeType === 'Combinada P+T') {
+        updateCombinedSurgeTopology(spd, false, true, '4P', '40A');
+      }
+
+      selectedElement = spd;
+      selectedIds = new Set([spd.id]);
+      const isMobileView = window.matchMedia('(max-width: 900px)').matches;
+      if (isMobileView) {
+        requestAnimationFrame(() => focusElementOnMobile(spd));
+      } else {
+        fitViewToContent();
+      }
     }
 
     function moveElementSubtree(rootId, deltaX, deltaY, visited = new Set()) {
@@ -1085,6 +1129,7 @@
       } else {
         fitViewToContent();
       }
+      return elem;
     }
 
     function getDefaultText(type) {
