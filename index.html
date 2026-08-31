@@ -2271,7 +2271,8 @@
       TIERRA: {
         title: 'Editar toma de tierra',
         fields: [
-          { key: 'section', label: 'Sección del conductor', placeholder: 'PE 16mm²', value: 'PE 16mm²', wide: true }
+          { key: 'section', label: 'Sección del conductor', placeholder: 'PE 16mm²', value: 'PE 16mm²' },
+          { key: 'resistance', label: 'Resistencia de tierra', placeholder: 'Ej. 20', value: '', unit: 'Ω', numericOnly: true }
         ]
       }
     };
@@ -2306,7 +2307,7 @@
           distance: (lines[3] || '').replace(/^\(|\)$/g, '')
         };
       }
-      if (el.type === 'TIERRA') return { section: lines[0] };
+      if (el.type === 'TIERRA') return { section: lines[0], resistance: lines[1] || '' };
       return {};
     }
 
@@ -2457,7 +2458,9 @@
         const distance = readField('distance', '15mts.').replace(/^\(|\)$/g, '');
         editingElement.text = [readField('poles', '2P'), readField('amps', '16A'), readField('circuit', 'Circuito'), '(' + distance + ')'].join('\n');
       } else if (type === 'TIERRA') {
-        editingElement.text = readField('section', 'PE 16mm²');
+        const section = readField('section', 'PE 16mm²');
+        const resistance = readField('resistance', '');
+        editingElement.text = [section, resistance].filter(Boolean).join('\n');
       } else {
         editingElement.text = document.getElementById('elementText').value.trim();
       }
