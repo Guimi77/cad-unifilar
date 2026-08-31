@@ -667,6 +667,11 @@
         /^Combinada P\+T$/i.test(normalizeTextLines(el.text)[0] || ''));
     }
 
+    function isIntegratedSurge(el) {
+      return Boolean(el && el.type === 'SOBRETENSION' &&
+        /^(Permanentes|Combinada P\+T)$/i.test(normalizeTextLines(el.text)[0] || ''));
+    }
+
     function getOutputPort(el) {
       if (el.type === 'ACOMETIDA') {
         return { x: el.x + el.w, y: el.y + 10 };
@@ -713,7 +718,10 @@
 
     function getCompatibleParents(type) {
       const allowed = connectionRules[type] || [];
-      return elements.filter(el => allowed.includes(el.type));
+      return elements.filter(el =>
+        allowed.includes(el.type) &&
+        (el.type !== 'SOBRETENSION' || isIntegratedSurge(el))
+      );
     }
 
     function getIgaDownstreamBranchY(parent) {
@@ -750,7 +758,10 @@
       }
 
       const allowed = connectionRules[type] || [];
-      const candidates = elements.filter(el => allowed.includes(el.type));
+      const candidates = elements.filter(el =>
+        allowed.includes(el.type) &&
+        (el.type !== 'SOBRETENSION' || isIntegratedSurge(el))
+      );
       const parent = forcedParent || (candidates.length ? candidates[candidates.length - 1] : null);
 
       if (!parent) {
@@ -934,10 +945,10 @@
       }
 
       if (type === 'IGA') {
-        const combinedProtection = elements.find(isCombinedSurge);
-        if (combinedProtection) {
-          selectedElement = combinedProtection;
-          selectedIds = new Set([combinedProtection.id]);
+        const integratedProtection = elements.find(isIntegratedSurge);
+        if (integratedProtection) {
+          selectedElement = integratedProtection;
+          selectedIds = new Set([integratedProtection.id]);
           draw();
           return;
         }
@@ -956,7 +967,7 @@
       if (type === 'DIFERENCIAL') {
         const selectedProtection = elements.find(el =>
           selectedIds.has(el.id) &&
-          (['IGA', 'GENERAL_FILA'].includes(el.type) || isCombinedSurge(el))
+          (['IGA', 'GENERAL_FILA'].includes(el.type) || isIntegratedSurge(el))
         );
         if (selectedProtection) {
           createElement(type, selectedProtection, [], true);
@@ -984,7 +995,7 @@
         const directDifferentials = elements.filter(el => {
           if (el.type !== 'DIFERENCIAL') return false;
           const parent = elements.find(candidate => candidate.id === el.parentId);
-          return parent && (parent.type === 'IGA' || isCombinedSurge(parent));
+          return parent && (parent.type === 'IGA' || isIntegratedSurge(parent));
         });
         const selectedDifferentials = directDifferentials.filter(el => selectedIds.has(el.id));
 
@@ -1026,7 +1037,7 @@
       const spd = createElement('SOBRETENSION', iga);
       spd.text = [surgeType, '4P', '40A', '6kA'].join('\n');
 
-      if (surgeType === 'Combinada P+T') {
+      if (surgeType === 'Permanentes' || surgeType === 'Combinada P+T') {
         updateCombinedSurgeTopology(spd, false, true, '4P', '40A');
       }
 
@@ -1361,8 +1372,8 @@
 
       ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 15); ctx.stroke();
 
-      const combinedSurge = isCombinedSurge({ type, text });
-      if (type === 'IGA' || type === 'GENERAL_FILA' || type === 'PIA' || combinedSurge) {
+      const integratedSurge = isIntegratedSurge({ type, text });
+      if (type === 'IGA' || type === 'GENERAL_FILA' || type === 'PIA' || integratedSurge) {
         const outputY = type === 'PIA' ? 100 : 60;
         ctx.beginPath();
         // Contacto magnetotérmico: la diagonal nace en el contacto inferior.
@@ -1372,8 +1383,8 @@
         ctx.beginPath(); ctx.arc(0, 15, 2, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.arc(0, 42, 2, 0, Math.PI*2); ctx.fill();
 
-        if (combinedSurge) {
-          // Protección P+T integrada en el magnetotérmico de cabecera.
+        if (integratedSurge) {
+          // Protección de sobretensión integrada en el magnetotérmico de cabecera.
           ctx.beginPath();
           ctx.moveTo(0, 15);
           ctx.lineTo(26, 15);
@@ -1507,7 +1518,7 @@
             maxWidth = Math.max(maxWidth, ctx.measureText(line).width);
           });
 
-          const labelX = combinedSurge ? 45 : (type === 'DIFERENCIAL' ? 28 : 17);
+          const labelX = integratedSurge ? 45 : (type === 'DIFERENCIAL' ? 28 : 17);
           ctx.fillStyle = '#ffffff';
           ctx.fillRect(labelX, 20, maxWidth + 6, (lines.length * 11) + 4);
 
@@ -1602,7 +1613,7 @@
       if (el.type === 'PIA') {
         return { left: el.x - 48, top: el.y - 10, right: el.x + 48, bottom: el.y + 132 };
       }
-      if (isCombinedSurge(el)) {
+      if (isIntegratedSurge(el)) {
         return { left: el.x - 16, top: el.y - 12, right: el.x + 150, bottom: el.y + 78 };
       }
       if (el.type === 'LINEA_H') {
@@ -2154,11 +2165,14 @@
       } else {
         sobretensiones.forEach((spd, index) => {
           const parent = elements.find(el => el.id === spd.parentId);
-          if (isCombinedSurge(spd)) {
+          if (isIntegratedSurge(spd)) {
+            const protectionName = isCombinedSurge(spd)
+              ? 'Protección combinada'
+              : 'Protección permanente';
             if (!parent || parent.type !== 'ACOMETIDA') {
-              errores.push('Protección combinada ' + (index + 1) + ': debe sustituir al IGA y conectarse tras la acometida.');
+              errores.push(protectionName + ' ' + (index + 1) + ': debe sustituir al IGA y conectarse tras la acometida.');
             } else {
-              correctos.push('Protección combinada ' + (index + 1) + ' actuando como cabecera e IGA.');
+              correctos.push(protectionName + ' ' + (index + 1) + ' actuando como cabecera e IGA.');
             }
           } else if (!parent || parent.type !== 'IGA') {
             errores.push('SPD ' + (index + 1) + ': debe conectarse inmediatamente aguas abajo del IGA.');
@@ -2201,12 +2215,12 @@
         let parent = elements.find(el => el.id === dif.parentId);
         const visited = new Set();
         while (parent && !['IGA', 'GENERAL_FILA'].includes(parent.type) &&
-               !isCombinedSurge(parent) && !visited.has(parent.id)) {
+               !isIntegratedSurge(parent) && !visited.has(parent.id)) {
           visited.add(parent.id);
           parent = elements.find(el => el.id === parent.parentId);
         }
         const proteccionAguasArriba =
-          parent && (['IGA', 'GENERAL_FILA'].includes(parent.type) || isCombinedSurge(parent))
+          parent && (['IGA', 'GENERAL_FILA'].includes(parent.type) || isIntegratedSurge(parent))
             ? parent
             : null;
         const proteccionA = proteccionAguasArriba
@@ -2215,7 +2229,7 @@
         const proteccionNombre = proteccionAguasArriba &&
           proteccionAguasArriba.type === 'GENERAL_FILA'
           ? 'general de fila'
-          : (isCombinedSurge(proteccionAguasArriba) ? 'protección combinada' : 'IGA');
+          : (isIntegratedSurge(proteccionAguasArriba) ? 'protección de sobretensión con IGA' : 'IGA');
 
         if (difA === null) {
           avisos.push(nombre + ': no se reconoce su intensidad nominal en A.');
@@ -2251,9 +2265,9 @@
       generalesFila.forEach((general, index) => {
         const parent = elements.find(el => el.id === general.parentId);
         const generalA = parseAmperios(general.text);
-        const validHeader = parent && (parent.type === 'IGA' || isCombinedSurge(parent));
+        const validHeader = parent && (parent.type === 'IGA' || isIntegratedSurge(parent));
         const igaA = validHeader ? parseAmperios(parent.text) : null;
-        const headerName = isCombinedSurge(parent) ? 'protección combinada' : 'IGA';
+        const headerName = isIntegratedSurge(parent) ? 'protección de sobretensión con IGA' : 'IGA';
 
         if (!validHeader) {
           errores.push('General de fila ' + (index + 1) + ': debe estar conectado aguas abajo del IGA o protección combinada.');
@@ -2576,8 +2590,8 @@
       return rawValue || fallback;
     }
 
-    function updateCombinedSurgeTopology(el, wasCombined, nowCombined, poles, amps) {
-      if (!wasCombined && nowCombined) {
+    function updateCombinedSurgeTopology(el, wasIntegrated, nowIntegrated, poles, amps) {
+      if (!wasIntegrated && nowIntegrated) {
         const iga = elements.find(candidate => candidate.id === el.parentId && candidate.type === 'IGA');
         if (!iga) return;
 
@@ -2594,7 +2608,7 @@
         return;
       }
 
-      if (wasCombined && !nowCombined) {
+      if (wasIntegrated && !nowIntegrated) {
         const restoredIga = {
           id: Date.now() + Math.random(),
           type: 'IGA',
@@ -2634,7 +2648,7 @@
       } else if (type === 'DIFERENCIAL') {
         editingElement.text = [readField('poles', '4P'), readField('amps', '40A'), readField('sensitivity', '30mA')].join('\n');
       } else if (type === 'SOBRETENSION') {
-        const wasCombined = isCombinedSurge(editingElement);
+        const wasIntegrated = isIntegratedSurge(editingElement);
         const surgeType = readField('surgeType', 'Transitorias');
         const poles = readField('poles', '4P');
         const amps = readField('amps', '40A');
@@ -2647,8 +2661,8 @@
         ].join('\n');
         updateCombinedSurgeTopology(
           editingElement,
-          wasCombined,
-          surgeType === 'Combinada P+T',
+          wasIntegrated,
+          surgeType === 'Permanentes' || surgeType === 'Combinada P+T',
           poles,
           amps
         );
