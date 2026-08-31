@@ -1077,7 +1077,7 @@
         case 'IGA': return '4P\n40A';
         case 'GENERAL_FILA': return '4P\n40A';
         case 'DIFERENCIAL': return '4P\n40A\n30mA';
-        case 'SOBRETENSION': return 'SPD T2\nUc 275V\nImax 40kA';
+        case 'SOBRETENSION': return 'Transitorias\n4P\n40A';
         case 'PIA': {
           const number = elements.filter(el => el.type === 'PIA').length + 1;
           return '2P\n16A\nC' + number + ' Circuito\n(15 m)';
@@ -2241,6 +2241,8 @@
     const AMP_OPTIONS = ['10A', '16A', '20A', '25A', '32A', '40A', '63A'];
     const SENSITIVITY_OPTIONS = ['30mA', '300mA'];
     const CABLE_SECTION_OPTIONS = ['6mm²', '10mm²', '16mm²', '25mm²'];
+    const SURGE_TYPE_OPTIONS = ['Transitorias', 'Permanentes'];
+    const SURGE_POLE_OPTIONS = ['2P', '4P'];
 
     const symbolEditorSchemas = {
       ACOMETIDA: {
@@ -2277,9 +2279,9 @@
       SOBRETENSION: {
         title: 'Editar protección contra sobretensiones',
         fields: [
-          { key: 'spdType', label: 'Tipo', placeholder: 'SPD T2', value: 'SPD T2' },
-          { key: 'uc', label: 'Tensión Uc', placeholder: 'Uc 275V', value: 'Uc 275V' },
-          { key: 'imax', label: 'Corriente máxima', placeholder: 'Imax 40kA', value: 'Imax 40kA', wide: true }
+          { key: 'surgeType', label: 'Tipo de protección', value: 'Transitorias', options: SURGE_TYPE_OPTIONS, wide: true },
+          { key: 'poles', label: 'Número de polos', value: '4P', options: SURGE_POLE_OPTIONS },
+          { key: 'amps', label: 'Intensidad', value: '40A', options: AMP_OPTIONS, unit: 'A', allowOther: true }
         ]
       },
       PIA: {
@@ -2321,7 +2323,18 @@
       }
       if (el.type === 'IGA' || el.type === 'GENERAL_FILA') return { poles: lines[0], amps: lines[1] };
       if (el.type === 'DIFERENCIAL') return { poles: lines[0], amps: lines[1], sensitivity: lines[2] };
-      if (el.type === 'SOBRETENSION') return { spdType: lines[0], uc: lines[1], imax: lines[2] };
+      if (el.type === 'SOBRETENSION') {
+        const legacyTransient = /^SPD\b|\bT[123]\b/i.test(lines[0] || '');
+        const poles = lines.find(line => /^(2P|4P)$/i.test(line));
+        const amps = lines.find(line => /^\d+(?:[.,]\d+)?\s*A$/i.test(line));
+        return {
+          surgeType: /^Permanentes$/i.test(lines[0] || '')
+            ? 'Permanentes'
+            : (legacyTransient ? 'Transitorias' : (lines[0] || 'Transitorias')),
+          poles: poles ? poles.toUpperCase() : '4P',
+          amps: amps ? amps.replace(/\s+/g, '') : '40A'
+        };
+      }
       if (el.type === 'PIA') {
         return {
           poles: lines[0],
@@ -2476,7 +2489,11 @@
       } else if (type === 'DIFERENCIAL') {
         editingElement.text = [readField('poles', '4P'), readField('amps', '40A'), readField('sensitivity', '30mA')].join('\n');
       } else if (type === 'SOBRETENSION') {
-        editingElement.text = [readField('spdType', 'SPD T2'), readField('uc', 'Uc 275V'), readField('imax', 'Imax 40kA')].join('\n');
+        editingElement.text = [
+          readField('surgeType', 'Transitorias'),
+          readField('poles', '4P'),
+          readField('amps', '40A')
+        ].join('\n');
       } else if (type === 'PIA') {
         const distance = readField('distance', '15mts.').replace(/^\(|\)$/g, '');
         editingElement.text = [readField('poles', '2P'), readField('amps', '16A'), readField('circuit', 'Circuito'), '(' + distance + ')'].join('\n');
