@@ -1145,11 +1145,11 @@
 
     function getDefaultText(type) {
       switch(type) {
-        case 'ACOMETIDA': return '4x16mm²\n(15 m)\nDesde contador';
-        case 'IGA': return '4P\n40A';
-        case 'GENERAL_FILA': return '4P\n40A';
-        case 'DIFERENCIAL': return '4P\n40A\n30mA\nTipo AC';
-        case 'SOBRETENSION': return 'Transitorias\n4P\n40A';
+        case 'ACOMETIDA': return '2x16mm²\n(15 m)\nDesde contador';
+        case 'IGA': return '2P\n40A';
+        case 'GENERAL_FILA': return '2P\n40A';
+        case 'DIFERENCIAL': return '2P\n40A\n30mA\nTipo AC';
+        case 'SOBRETENSION': return 'Transitorias\n2P\n40A';
         case 'PIA': {
           const number = elements.filter(el => el.type === 'PIA').length + 1;
           return "2P\n16A\nC" + number + " Circuito\n2'5mm²\n(15 m)";
@@ -1346,7 +1346,7 @@
 
       // Procedencia, cable y distancia centrados sobre la línea.
       const lines = normalizeTextLines(el.text);
-      const cable = lines[0] || '4x16mm²';
+      const cable = lines[0] || '2x16mm²';
       const distance = lines[1] || '(15mts.)';
       const origin = lines[2] || 'Desde contador';
 
@@ -2363,7 +2363,7 @@
       ACOMETIDA: {
         title: 'Editar acometida',
         fields: [
-          { key: 'poles', label: 'Número de polos', value: '4P', options: POLE_OPTIONS },
+          { key: 'poles', label: 'Número de polos', value: '2P', options: POLE_OPTIONS },
           { key: 'section', label: 'Sección del cable', value: '16mm²', options: CABLE_SECTION_OPTIONS, unit: 'mm²', allowOther: true },
           { key: 'distance', label: 'Distancia', placeholder: '15', value: '15', unit: 'mts.', numericOnly: true, wide: true },
           { key: 'origin', label: 'Procedencia', placeholder: 'Desde contador', value: 'Desde contador', wide: true }
@@ -2372,21 +2372,21 @@
       IGA: {
         title: 'Editar interruptor general',
         fields: [
-          { key: 'poles', label: 'Número de polos', value: '4P', options: POLE_OPTIONS },
+          { key: 'poles', label: 'Número de polos', value: '2P', options: POLE_OPTIONS },
           { key: 'amps', label: 'Intensidad', value: '40A', options: AMP_OPTIONS, unit: 'A', allowOther: true }
         ]
       },
       GENERAL_FILA: {
         title: 'Editar general de fila',
         fields: [
-          { key: 'poles', label: 'Número de polos', value: '4P', options: POLE_OPTIONS },
+          { key: 'poles', label: 'Número de polos', value: '2P', options: POLE_OPTIONS },
           { key: 'amps', label: 'Intensidad', value: '40A', options: AMP_OPTIONS, unit: 'A', allowOther: true }
         ]
       },
       DIFERENCIAL: {
         title: 'Editar diferencial',
         fields: [
-          { key: 'poles', label: 'Número de polos', value: '4P', options: POLE_OPTIONS },
+          { key: 'poles', label: 'Número de polos', value: '2P', options: POLE_OPTIONS },
           { key: 'amps', label: 'Intensidad', value: '40A', options: AMP_OPTIONS, unit: 'A', allowOther: true },
           { key: 'sensitivity', label: 'Sensibilidad', value: '30mA', options: SENSITIVITY_OPTIONS, unit: 'mA', allowOther: true, wide: true },
           { key: 'differentialType', label: 'Tipo', value: 'Tipo AC', options: DIFFERENTIAL_TYPE_OPTIONS, wide: true }
@@ -2396,7 +2396,7 @@
         title: 'Editar protección contra sobretensiones',
         fields: [
           { key: 'surgeType', label: 'Tipo de protección', value: 'Transitorias', options: SURGE_TYPE_OPTIONS, wide: true },
-          { key: 'poles', label: 'Número de polos', value: '4P', options: SURGE_POLE_OPTIONS },
+          { key: 'poles', label: 'Número de polos', value: '2P', options: SURGE_POLE_OPTIONS },
           { key: 'amps', label: 'Intensidad', value: '40A', options: AMP_OPTIONS, unit: 'A', allowOther: true },
           { key: 'breakingCapacity', label: 'Poder de corte', value: '6kA', options: BREAKING_CAPACITY_OPTIONS, unit: 'kA', allowOther: true, wide: true }
         ]
@@ -2430,10 +2430,10 @@
     function valuesFromElement(el) {
       const lines = normalizeTextLines(el.text);
       if (el.type === 'ACOMETIDA') {
-        const cable = lines[0] || '4x16mm²';
+        const cable = lines[0] || '2x16mm²';
         const match = cable.match(/^(\d+)\s*[xX×]\s*(.+)$/);
         return {
-          poles: (match ? match[1] : '4') + 'P',
+          poles: (match ? match[1] : '2') + 'P',
           section: match ? match[2] : '16mm²',
           distance: (lines[1] || '15mts.').replace(/^\(|\)$/g, ''),
           origin: lines[2] || 'Desde contador'
@@ -2459,7 +2459,7 @@
             : (/^Permanentes$/i.test(lines[0] || '')
             ? 'Permanentes'
             : (legacyTransient ? 'Transitorias' : (lines[0] || 'Transitorias'))),
-          poles: poles ? poles.toUpperCase() : '4P',
+          poles: poles ? poles.toUpperCase() : '2P',
           amps: amps ? amps.replace(/\s+/g, '') : '40A',
           breakingCapacity: breakingCapacity
             ? breakingCapacity.replace(/\s+/g, '').replace(/KA$/i, 'kA')
@@ -2668,16 +2668,16 @@
       const type = editingElement.type;
 
       if (type === 'ACOMETIDA') {
-        const poles = readField('poles', '4').replace(/[^0-9]/g, '') || '4';
+        const poles = readField('poles', '2').replace(/[^0-9]/g, '') || '2';
         const section = readField('section', '16mm²');
         const distance = readField('distance', '15mts.').replace(/^\(|\)$/g, '');
         const origin = readField('origin', 'Desde contador');
         editingElement.text = poles + 'x' + section + '\n(' + distance + ')\n' + origin;
       } else if (type === 'IGA' || type === 'GENERAL_FILA') {
-        editingElement.text = [readField('poles', '4P'), readField('amps', '40A')].join('\n');
+        editingElement.text = [readField('poles', '2P'), readField('amps', '40A')].join('\n');
       } else if (type === 'DIFERENCIAL') {
         editingElement.text = [
-          readField('poles', '4P'),
+          readField('poles', '2P'),
           readField('amps', '40A'),
           readField('sensitivity', '30mA'),
           readField('differentialType', 'Tipo AC')
@@ -2685,7 +2685,7 @@
       } else if (type === 'SOBRETENSION') {
         const wasIntegrated = isIntegratedSurge(editingElement);
         const surgeType = readField('surgeType', 'Transitorias');
-        const poles = readField('poles', '4P');
+        const poles = readField('poles', '2P');
         const amps = readField('amps', '40A');
         const breakingCapacity = readField('breakingCapacity', '6kA');
         editingElement.text = [
