@@ -1148,7 +1148,7 @@
         case 'ACOMETIDA': return '4x16mm²\n(15 m)\nDesde contador';
         case 'IGA': return '4P\n40A';
         case 'GENERAL_FILA': return '4P\n40A';
-        case 'DIFERENCIAL': return '4P\n40A\n30mA';
+        case 'DIFERENCIAL': return '4P\n40A\n30mA\nTipo AC';
         case 'SOBRETENSION': return 'Transitorias\n4P\n40A';
         case 'PIA': {
           const number = elements.filter(el => el.type === 'PIA').length + 1;
@@ -1468,7 +1468,10 @@
 
       if (text) {
         ctx.font = 'bold 9px "Courier New"';
-        const lines = normalizeTextLines(text);
+        let lines = normalizeTextLines(text);
+        if (type === 'DIFERENCIAL' && !lines.some(line => /^Tipo\s+(A|AC)$/i.test(line))) {
+          lines = [...lines, 'Tipo AC'];
+        }
 
         if (type === 'PIA') {
           const poles = lines[0] || '2P';
@@ -2346,6 +2349,7 @@
     const POLE_OPTIONS = ['2P', '3P', '4P'];
     const AMP_OPTIONS = ['10A', '16A', '20A', '25A', '32A', '40A', '63A'];
     const SENSITIVITY_OPTIONS = ['30mA', '300mA'];
+    const DIFFERENTIAL_TYPE_OPTIONS = ['Tipo A', 'Tipo AC'];
     const CABLE_SECTION_OPTIONS = ['6mm²', '10mm²', '16mm²', '25mm²'];
     const SURGE_TYPE_OPTIONS = ['Transitorias', 'Permanentes', 'Combinada P+T'];
     const SURGE_POLE_OPTIONS = ['2P', '4P'];
@@ -2380,7 +2384,8 @@
         fields: [
           { key: 'poles', label: 'Número de polos', value: '4P', options: POLE_OPTIONS },
           { key: 'amps', label: 'Intensidad', value: '40A', options: AMP_OPTIONS, unit: 'A', allowOther: true },
-          { key: 'sensitivity', label: 'Sensibilidad', value: '30mA', options: SENSITIVITY_OPTIONS, unit: 'mA', allowOther: true, wide: true }
+          { key: 'sensitivity', label: 'Sensibilidad', value: '30mA', options: SENSITIVITY_OPTIONS, unit: 'mA', allowOther: true, wide: true },
+          { key: 'differentialType', label: 'Tipo', value: 'Tipo AC', options: DIFFERENTIAL_TYPE_OPTIONS, wide: true }
         ]
       },
       SOBRETENSION: {
@@ -2430,7 +2435,12 @@
         };
       }
       if (el.type === 'IGA' || el.type === 'GENERAL_FILA') return { poles: lines[0], amps: lines[1] };
-      if (el.type === 'DIFERENCIAL') return { poles: lines[0], amps: lines[1], sensitivity: lines[2] };
+      if (el.type === 'DIFERENCIAL') return {
+        poles: lines[0],
+        amps: lines[1],
+        sensitivity: lines[2],
+        differentialType: lines.find(line => /^Tipo\s+(A|AC)$/i.test(line)) || 'Tipo AC'
+      };
       if (el.type === 'SOBRETENSION') {
         const legacyTransient = /^SPD\b|\bT[123]\b/i.test(lines[0] || '');
         const poles = lines.find(line => /^(2P|4P)$/i.test(line));
@@ -2646,7 +2656,12 @@
       } else if (type === 'IGA' || type === 'GENERAL_FILA') {
         editingElement.text = [readField('poles', '4P'), readField('amps', '40A')].join('\n');
       } else if (type === 'DIFERENCIAL') {
-        editingElement.text = [readField('poles', '4P'), readField('amps', '40A'), readField('sensitivity', '30mA')].join('\n');
+        editingElement.text = [
+          readField('poles', '4P'),
+          readField('amps', '40A'),
+          readField('sensitivity', '30mA'),
+          readField('differentialType', 'Tipo AC')
+        ].join('\n');
       } else if (type === 'SOBRETENSION') {
         const wasIntegrated = isIntegratedSurge(editingElement);
         const surgeType = readField('surgeType', 'Transitorias');
