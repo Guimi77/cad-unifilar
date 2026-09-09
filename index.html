@@ -1152,7 +1152,7 @@
         case 'SOBRETENSION': return 'Transitorias\n4P\n40A';
         case 'PIA': {
           const number = elements.filter(el => el.type === 'PIA').length + 1;
-          return '2P\n16A\nC' + number + ' Circuito\n(15 m)';
+          return "2P\n16A\nC" + number + " Circuito\n2'5mm²\n(15 m)";
         }
         case 'TIERRA': return 'PE 16mm²';
         case 'TEXTO': return 'Nota técnica';
@@ -1477,7 +1477,9 @@
           const poles = lines[0] || '2P';
           const amps = lines[1] || '16A';
           const circuit = lines[2] || 'Circuito';
-          const rawDistance = lines[3] || '(15mts.)';
+          const hasSection = Boolean(lines[3] && /mm²$/u.test(lines[3]));
+        const section = hasSection ? lines[3] : "2'5mm²";
+        const rawDistance = hasSection ? (lines[4] || '(15mts.)') : (lines[3] || '(15mts.)');
           const distance = /^\(.*\)$/.test(rawDistance) ? rawDistance : '(' + rawDistance + ')';
 
           // Polos e intensidad a la derecha del símbolo.
@@ -1485,6 +1487,7 @@
           ctx.textAlign = 'left';
           ctx.fillText(poles, 20, 29);
           ctx.fillText(amps, 20, 40);
+          ctx.fillText(section, 20, 51);
 
           // Nombre y distancia bajo la salida alargada.
           ctx.textAlign = 'center';
@@ -2351,6 +2354,7 @@
     const SENSITIVITY_OPTIONS = ['30mA', '300mA'];
     const DIFFERENTIAL_TYPE_OPTIONS = ['Tipo A', 'Tipo AC'];
     const CABLE_SECTION_OPTIONS = ['6mm²', '10mm²', '16mm²', '25mm²'];
+    const PIA_CABLE_SECTION_OPTIONS = ["1'5mm²", "2'5mm²", '4mm²', '6mm²', '10mm²', '16mm²'];
     const SURGE_TYPE_OPTIONS = ['Transitorias', 'Permanentes', 'Combinada P+T'];
     const SURGE_POLE_OPTIONS = ['2P', '4P'];
     const BREAKING_CAPACITY_OPTIONS = ['6kA', '10kA', '15kA', '25kA'];
@@ -2402,6 +2406,7 @@
         fields: [
           { key: 'poles', label: 'Número de polos', value: '2P', options: POLE_OPTIONS },
           { key: 'amps', label: 'Intensidad', value: '16A', options: AMP_OPTIONS, unit: 'A', allowOther: true },
+          { key: 'section', label: 'Sección de cable', value: "2'5mm²", options: PIA_CABLE_SECTION_OPTIONS, unit: 'mm²', allowOther: true, wide: true },
           { key: 'circuit', label: 'Nombre del circuito', placeholder: 'C1 Iluminación', value: 'Circuito', wide: true },
           { key: 'distance', label: 'Distancia', placeholder: '15', value: '15', unit: 'mts.', numericOnly: true, wide: true }
         ]
@@ -2462,11 +2467,19 @@
         };
       }
       if (el.type === 'PIA') {
+        const sectionIndex = lines.findIndex((line, index) =>
+          index >= 3 && /mm²$/u.test(line)
+        );
+        const section = sectionIndex >= 0 ? lines[sectionIndex] : "2'5mm²";
+        const distanceLine = sectionIndex >= 0
+          ? (lines[sectionIndex + 1] || '')
+          : (lines[3] || '');
         return {
           poles: lines[0],
           amps: lines[1],
           circuit: lines[2],
-          distance: (lines[3] || '').replace(/^\(|\)$/g, '')
+          section,
+          distance: distanceLine.replace(/^\(|\)$/g, '')
         };
       }
       if (el.type === 'TIERRA') return { section: lines[0], resistance: lines[1] || '' };
@@ -2474,7 +2487,10 @@
     }
 
     function extractNumericValue(value, fallback = '') {
-      const match = String(value || fallback).replace(',', '.').match(/\d+(?:\.\d+)?/);
+      const match = String(value || fallback)
+        .replace(',', '.')
+        .replace(/['’]/g, '.')
+        .match(/\d+(?:\.\d+)?/);
       return match ? match[0] : '';
     }
 
@@ -2589,7 +2605,11 @@
         if (control.value !== '__other__') return control.value;
         const custom = document.getElementById('field-' + key + '-other');
         const numeric = extractNumericValue(custom ? custom.value : '', fallback);
-        return numeric ? numeric + unit : fallback;
+        if (!numeric) return fallback;
+        const formattedNumeric = editingElement && editingElement.type === 'PIA' && key === 'section'
+          ? numeric.replace('.', "'")
+          : numeric;
+        return formattedNumeric + unit;
       }
 
       const rawValue = control.value.trim();
@@ -2683,7 +2703,14 @@
         );
       } else if (type === 'PIA') {
         const distance = readField('distance', '15mts.').replace(/^\(|\)$/g, '');
-        editingElement.text = [readField('poles', '2P'), readField('amps', '16A'), readField('circuit', 'Circuito'), '(' + distance + ')'].join('\n');
+        const section = readField('section', "2'5mm²");
+        editingElement.text = [
+          readField('poles', '2P'),
+          readField('amps', '16A'),
+          readField('circuit', 'Circuito'),
+          section,
+          '(' + distance + ')'
+        ].join('\n');
       } else if (type === 'TIERRA') {
         const section = readField('section', 'PE 16mm²');
         const resistance = readField('resistance', '');
