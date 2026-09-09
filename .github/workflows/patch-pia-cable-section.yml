@@ -1,0 +1,106 @@
+name: Aplicar sección de cable a PIAs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-pia-cable-section.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Añadir sección de cable a PIAs
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+
+          replacements = [
+              (
+                  "    const CABLE_SECTION_OPTIONS = ['6mm²', '10mm²', '16mm²', '25mm²'];\n    const SURGE_TYPE_OPTIONS",
+                  "    const CABLE_SECTION_OPTIONS = ['6mm²', '10mm²', '16mm²', '25mm²'];\n    const PIA_CABLE_SECTION_OPTIONS = [\"1'5mm²\", \"2'5mm²\", '4mm²', '6mm²', '10mm²', '16mm²'];\n    const SURGE_TYPE_OPTIONS"
+              ),
+              (
+                  "          { key: 'amps', label: 'Intensidad', value: '16A', options: AMP_OPTIONS, unit: 'A', allowOther: true },\n          { key: 'circuit', label: 'Nombre del circuito', placeholder: 'C1 Iluminación', value: 'Circuito', wide: true },",
+                  "          { key: 'amps', label: 'Intensidad', value: '16A', options: AMP_OPTIONS, unit: 'A', allowOther: true },\n          { key: 'section', label: 'Sección de cable', value: \"2'5mm²\", options: PIA_CABLE_SECTION_OPTIONS, unit: 'mm²', allowOther: true, wide: true },\n          { key: 'circuit', label: 'Nombre del circuito', placeholder: 'C1 Iluminación', value: 'Circuito', wide: true },"
+              ),
+              (
+                  "      if (el.type === 'PIA') {\n        return {\n          poles: lines[0],\n          amps: lines[1],\n          circuit: lines[2],\n          distance: (lines[3] || '').replace(/^\\(|\\)$/g, '')\n        };\n      }",
+                  "      if (el.type === 'PIA') {\n        const sectionIndex = lines.findIndex((line, index) =>\n          index >= 3 && /mm²$/u.test(line)\n        );\n        const section = sectionIndex >= 0 ? lines[sectionIndex] : \"2'5mm²\";\n        const distanceLine = sectionIndex >= 0\n          ? (lines[sectionIndex + 1] || '')\n          : (lines[3] || '');\n        return {\n          poles: lines[0],\n          amps: lines[1],\n          circuit: lines[2],\n          section,\n          distance: distanceLine.replace(/^\\(|\\)$/g, '')\n        };\n      }"
+              ),
+              (
+                  "      const match = String(value || fallback).replace(',', '.').match(/\\d+(?:\\.\\d+)?/);",
+                  "      const match = String(value || fallback)\n        .replace(',', '.')\n        .replace(/['’]/g, '.')\n        .match(/\\d+(?:\\.\\d+)?/);"
+              ),
+              (
+                  "        const rawDistance = lines[3] || '(15mts.)';\n        const distance = /^\\(.*\\)$/.test(rawDistance) ? rawDistance : '(' + rawDistance + ')';",
+                  "        const hasSection = Boolean(lines[3] && /mm²$/u.test(lines[3]));\n        const section = hasSection ? lines[3] : \"2'5mm²\";\n        const rawDistance = hasSection ? (lines[4] || '(15mts.)') : (lines[3] || '(15mts.)');\n        const distance = /^\\(.*\\)$/.test(rawDistance) ? rawDistance : '(' + rawDistance + ')';"
+              ),
+              (
+                  "          ctx.fillText(poles, 20, 29);\n          ctx.fillText(amps, 20, 40);",
+                  "          ctx.fillText(poles, 20, 29);\n          ctx.fillText(amps, 20, 40);\n          ctx.fillText(section, 20, 51);"
+              ),
+              (
+                  "          return '2P\\n16A\\nC' + number + ' Circuito\\n(15 m)';",
+                  "          return \"2P\\n16A\\nC\" + number + \" Circuito\\n2'5mm²\\n(15 m)\";"
+              ),
+              (
+                  "        return numeric ? numeric + unit : fallback;\n      }",
+                  "        if (!numeric) return fallback;\n        const formattedNumeric = editingElement && editingElement.type === 'PIA' && key === 'section'\n          ? numeric.replace('.', \"'\")\n          : numeric;\n        return formattedNumeric + unit;\n      }"
+              ),
+              (
+                  "      } else if (type === 'PIA') {\n        const distance = readField('distance', '15mts.').replace(/^\\(|\\)$/g, '');\n        editingElement.text = [readField('poles', '2P'), readField('amps', '16A'), readField('circuit', 'Circuito'), '(' + distance + ')'].join('\\n');\n      } else if (type === 'TIERRA') {",
+                  "      } else if (type === 'PIA') {\n        const distance = readField('distance', '15mts.').replace(/^\\(|\\)$/g, '');\n        const section = readField('section', \"2'5mm²\");\n        editingElement.text = [\n          readField('poles', '2P'),\n          readField('amps', '16A'),\n          readField('circuit', 'Circuito'),\n          section,\n          '(' + distance + ')'\n        ].join('\\n');\n      } else if (type === 'TIERRA') {"
+              ),
+          ]
+
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'Reemplazo no seguro: se esperaba 1 coincidencia y hay {count}: {old[:110]!r}')
+              text = text.replace(old, new, 1)
+
+          required = [
+              'PIA_CABLE_SECTION_OPTIONS',
+              "key: 'section', label: 'Sección de cable'",
+              "sectionIndex = lines.findIndex",
+              "const hasSection = Boolean(lines[3]",
+              "ctx.fillText(section, 20, 51);",
+              "Circuito\\n2'5mm²\\n(15 m)",
+              "numeric.replace('.', \"'\")",
+              "readField('section', \"2'5mm²\")",
+          ]
+          for needle in required:
+              if needle not in text:
+                  raise SystemExit(f'Falta comprobación: {needle}')
+
+          path.write_text(text, encoding='utf-8')
+
+          scripts = re.findall(r'<script>([\s\S]*?)</script>', text)
+          if not scripts:
+              raise SystemExit('No se encontró el script principal')
+          Path('/tmp/unifilar.js').write_text(scripts[-1], encoding='utf-8')
+          PY
+
+          node --check /tmp/unifilar.js
+
+      - name: Guardar cambio y retirar workflow temporal
+        shell: bash
+        run: |
+          rm -f .github/workflows/patch-pia-cable-section.yml
+          git config user.name "ChatGPT"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "Añadir sección de cable a PIAs"
+          git push
