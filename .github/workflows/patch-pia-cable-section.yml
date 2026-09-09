@@ -25,50 +25,66 @@ jobs:
           path = Path('index.html')
           text = path.read_text(encoding='utf-8')
 
-          replacements = [
-              (
-                  "    const CABLE_SECTION_OPTIONS = ['6mm²', '10mm²', '16mm²', '25mm²'];\n    const SURGE_TYPE_OPTIONS",
-                  "    const CABLE_SECTION_OPTIONS = ['6mm²', '10mm²', '16mm²', '25mm²'];\n    const PIA_CABLE_SECTION_OPTIONS = [\"1'5mm²\", \"2'5mm²\", '4mm²', '6mm²', '10mm²', '16mm²'];\n    const SURGE_TYPE_OPTIONS"
-              ),
-              (
-                  "          { key: 'amps', label: 'Intensidad', value: '16A', options: AMP_OPTIONS, unit: 'A', allowOther: true },\n          { key: 'circuit', label: 'Nombre del circuito', placeholder: 'C1 Iluminación', value: 'Circuito', wide: true },",
-                  "          { key: 'amps', label: 'Intensidad', value: '16A', options: AMP_OPTIONS, unit: 'A', allowOther: true },\n          { key: 'section', label: 'Sección de cable', value: \"2'5mm²\", options: PIA_CABLE_SECTION_OPTIONS, unit: 'mm²', allowOther: true, wide: true },\n          { key: 'circuit', label: 'Nombre del circuito', placeholder: 'C1 Iluminación', value: 'Circuito', wide: true },"
-              ),
-              (
-                  "      if (el.type === 'PIA') {\n        return {\n          poles: lines[0],\n          amps: lines[1],\n          circuit: lines[2],\n          distance: (lines[3] || '').replace(/^\\(|\\)$/g, '')\n        };\n      }",
-                  "      if (el.type === 'PIA') {\n        const sectionIndex = lines.findIndex((line, index) =>\n          index >= 3 && /mm²$/u.test(line)\n        );\n        const section = sectionIndex >= 0 ? lines[sectionIndex] : \"2'5mm²\";\n        const distanceLine = sectionIndex >= 0\n          ? (lines[sectionIndex + 1] || '')\n          : (lines[3] || '');\n        return {\n          poles: lines[0],\n          amps: lines[1],\n          circuit: lines[2],\n          section,\n          distance: distanceLine.replace(/^\\(|\\)$/g, '')\n        };\n      }"
-              ),
-              (
-                  "      const match = String(value || fallback).replace(',', '.').match(/\\d+(?:\\.\\d+)?/);",
-                  "      const match = String(value || fallback)\n        .replace(',', '.')\n        .replace(/['’]/g, '.')\n        .match(/\\d+(?:\\.\\d+)?/);"
-              ),
-              (
-                  "        const rawDistance = lines[3] || '(15mts.)';\n        const distance = /^\\(.*\\)$/.test(rawDistance) ? rawDistance : '(' + rawDistance + ')';",
-                  "        const hasSection = Boolean(lines[3] && /mm²$/u.test(lines[3]));\n        const section = hasSection ? lines[3] : \"2'5mm²\";\n        const rawDistance = hasSection ? (lines[4] || '(15mts.)') : (lines[3] || '(15mts.)');\n        const distance = /^\\(.*\\)$/.test(rawDistance) ? rawDistance : '(' + rawDistance + ')';"
-              ),
-              (
-                  "          ctx.fillText(poles, 20, 29);\n          ctx.fillText(amps, 20, 40);",
-                  "          ctx.fillText(poles, 20, 29);\n          ctx.fillText(amps, 20, 40);\n          ctx.fillText(section, 20, 51);"
-              ),
-              (
-                  "          return '2P\\n16A\\nC' + number + ' Circuito\\n(15 m)';",
-                  "          return \"2P\\n16A\\nC\" + number + \" Circuito\\n2'5mm²\\n(15 m)\";"
-              ),
-              (
-                  "        return numeric ? numeric + unit : fallback;\n      }",
-                  "        if (!numeric) return fallback;\n        const formattedNumeric = editingElement && editingElement.type === 'PIA' && key === 'section'\n          ? numeric.replace('.', \"'\")\n          : numeric;\n        return formattedNumeric + unit;\n      }"
-              ),
-              (
-                  "      } else if (type === 'PIA') {\n        const distance = readField('distance', '15mts.').replace(/^\\(|\\)$/g, '');\n        editingElement.text = [readField('poles', '2P'), readField('amps', '16A'), readField('circuit', 'Circuito'), '(' + distance + ')'].join('\\n');\n      } else if (type === 'TIERRA') {",
-                  "      } else if (type === 'PIA') {\n        const distance = readField('distance', '15mts.').replace(/^\\(|\\)$/g, '');\n        const section = readField('section', \"2'5mm²\");\n        editingElement.text = [\n          readField('poles', '2P'),\n          readField('amps', '16A'),\n          readField('circuit', 'Circuito'),\n          section,\n          '(' + distance + ')'\n        ].join('\\n');\n      } else if (type === 'TIERRA') {"
-              ),
-          ]
-
-          for old, new in replacements:
+          def replace_once(old, new, label):
+              global text
               count = text.count(old)
               if count != 1:
-                  raise SystemExit(f'Reemplazo no seguro: se esperaba 1 coincidencia y hay {count}: {old[:110]!r}')
+                  raise SystemExit(f'{label}: se esperaba 1 coincidencia y hay {count}')
               text = text.replace(old, new, 1)
+
+          replace_once(
+              "    const CABLE_SECTION_OPTIONS = ['6mm²', '10mm²', '16mm²', '25mm²'];\n    const SURGE_TYPE_OPTIONS",
+              "    const CABLE_SECTION_OPTIONS = ['6mm²', '10mm²', '16mm²', '25mm²'];\n    const PIA_CABLE_SECTION_OPTIONS = [\"1'5mm²\", \"2'5mm²\", '4mm²', '6mm²', '10mm²', '16mm²'];\n    const SURGE_TYPE_OPTIONS",
+              'opciones de sección'
+          )
+
+          replace_once(
+              "          { key: 'amps', label: 'Intensidad', value: '16A', options: AMP_OPTIONS, unit: 'A', allowOther: true },\n          { key: 'circuit', label: 'Nombre del circuito', placeholder: 'C1 Iluminación', value: 'Circuito', wide: true },",
+              "          { key: 'amps', label: 'Intensidad', value: '16A', options: AMP_OPTIONS, unit: 'A', allowOther: true },\n          { key: 'section', label: 'Sección de cable', value: \"2'5mm²\", options: PIA_CABLE_SECTION_OPTIONS, unit: 'mm²', allowOther: true, wide: true },\n          { key: 'circuit', label: 'Nombre del circuito', placeholder: 'C1 Iluminación', value: 'Circuito', wide: true },",
+              'campo sección PIA'
+          )
+
+          replace_once(
+              "      if (el.type === 'PIA') {\n        return {\n          poles: lines[0],\n          amps: lines[1],\n          circuit: lines[2],\n          distance: (lines[3] || '').replace(/^\\(|\\)$/g, '')\n        };\n      }",
+              "      if (el.type === 'PIA') {\n        const sectionIndex = lines.findIndex((line, index) =>\n          index >= 3 && /mm²$/u.test(line)\n        );\n        const section = sectionIndex >= 0 ? lines[sectionIndex] : \"2'5mm²\";\n        const distanceLine = sectionIndex >= 0\n          ? (lines[sectionIndex + 1] || '')\n          : (lines[3] || '');\n        return {\n          poles: lines[0],\n          amps: lines[1],\n          circuit: lines[2],\n          section,\n          distance: distanceLine.replace(/^\\(|\\)$/g, '')\n        };\n      }",
+              'lectura PIA'
+          )
+
+          replace_once(
+              "      const match = String(value || fallback).replace(',', '.').match(/\\d+(?:\\.\\d+)?/);",
+              "      const match = String(value || fallback)\n        .replace(',', '.')\n        .replace(/['’]/g, '.')\n        .match(/\\d+(?:\\.\\d+)?/);",
+              'lectura decimal'
+          )
+
+          replace_once(
+              "        const rawDistance = lines[3] || '(15 m)';",
+              "        const hasSection = Boolean(lines[3] && /mm²$/u.test(lines[3]));\n        const section = hasSection ? lines[3] : \"2'5mm²\";\n        const rawDistance = hasSection ? (lines[4] || '(15 m)') : (lines[3] || '(15 m)');",
+              'dibujo sección PIA'
+          )
+
+          replace_once(
+              "          ctx.fillText(poles, 20, 29);\n          ctx.fillText(amps, 20, 40);",
+              "          ctx.fillText(poles, 20, 29);\n          ctx.fillText(amps, 20, 40);\n          ctx.fillText(section, 20, 51);",
+              'texto sección PIA'
+          )
+
+          replace_once(
+              "          return '2P\\n16A\\nC' + number + ' Circuito\\n(15 m)';",
+              "          return \"2P\\n16A\\nC\" + number + \" Circuito\\n2'5mm²\\n(15 m)\";",
+              'valor por defecto PIA'
+          )
+
+          replace_once(
+              "        const custom = document.getElementById('field-' + key + '-other');\n        const numeric = extractNumericValue(custom ? custom.value : '', fallback);\n        return numeric ? numeric + unit : fallback;",
+              "        const custom = document.getElementById('field-' + key + '-other');\n        const numeric = extractNumericValue(custom ? custom.value : '', fallback);\n        if (!numeric) return fallback;\n        const formattedNumeric = editingElement && editingElement.type === 'PIA' && key === 'section'\n          ? numeric.replace('.', \"'\")\n          : numeric;\n        return formattedNumeric + unit;",
+              'valor manual Otros'
+          )
+
+          replace_once(
+              "      } else if (type === 'PIA') {\n        const distance = readField('distance', '15mts.').replace(/^\\(|\\)$/g, '');\n        editingElement.text = [readField('poles', '2P'), readField('amps', '16A'), readField('circuit', 'Circuito'), '(' + distance + ')'].join('\\n');\n      } else if (type === 'TIERRA') {",
+              "      } else if (type === 'PIA') {\n        const distance = readField('distance', '15mts.').replace(/^\\(|\\)$/g, '');\n        const section = readField('section', \"2'5mm²\");\n        editingElement.text = [\n          readField('poles', '2P'),\n          readField('amps', '16A'),\n          readField('circuit', 'Circuito'),\n          section,\n          '(' + distance + ')'\n        ].join('\\n');\n      } else if (type === 'TIERRA') {",
+              'guardado PIA'
+          )
 
           required = [
               'PIA_CABLE_SECTION_OPTIONS',
