@@ -1,0 +1,92 @@
+name: Aplicar tipo de diferencial
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-differential-type.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Añadir selector Tipo A / Tipo AC
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+
+          replacements = [
+              (
+                  "    const SENSITIVITY_OPTIONS = ['30mA', '300mA'];\n    const CABLE_SECTION_OPTIONS",
+                  "    const SENSITIVITY_OPTIONS = ['30mA', '300mA'];\n    const DIFFERENTIAL_TYPE_OPTIONS = ['Tipo A', 'Tipo AC'];\n    const CABLE_SECTION_OPTIONS"
+              ),
+              (
+                  "          { key: 'amps', label: 'Intensidad', value: '40A', options: AMP_OPTIONS, unit: 'A', allowOther: true },\n          { key: 'sensitivity', label: 'Sensibilidad', value: '30mA', options: SENSITIVITY_OPTIONS, unit: 'mA', allowOther: true, wide: true }\n        ]\n      },\n      SOBRETENSION:",
+                  "          { key: 'amps', label: 'Intensidad', value: '40A', options: AMP_OPTIONS, unit: 'A', allowOther: true },\n          { key: 'sensitivity', label: 'Sensibilidad', value: '30mA', options: SENSITIVITY_OPTIONS, unit: 'mA', allowOther: true, wide: true },\n          { key: 'differentialType', label: 'Tipo', value: 'Tipo AC', options: DIFFERENTIAL_TYPE_OPTIONS, wide: true }\n        ]\n      },\n      SOBRETENSION:"
+              ),
+              (
+                  "      if (el.type === 'DIFERENCIAL') return { poles: lines[0], amps: lines[1], sensitivity: lines[2] };",
+                  "      if (el.type === 'DIFERENCIAL') return {\n        poles: lines[0],\n        amps: lines[1],\n        sensitivity: lines[2],\n        differentialType: lines.find(line => /^Tipo\\s+(A|AC)$/i.test(line)) || 'Tipo AC'\n      };"
+              ),
+              (
+                  "        case 'DIFERENCIAL': return '4P\\n40A\\n30mA';",
+                  "        case 'DIFERENCIAL': return '4P\\n40A\\n30mA\\nTipo AC';"
+              ),
+              (
+                  "        const lines = normalizeTextLines(text);\n\n        if (type === 'PIA') {",
+                  "        let lines = normalizeTextLines(text);\n        if (type === 'DIFERENCIAL' && !lines.some(line => /^Tipo\\s+(A|AC)$/i.test(line))) {\n          lines = [...lines, 'Tipo AC'];\n        }\n\n        if (type === 'PIA') {"
+              ),
+              (
+                  "        editingElement.text = [readField('poles', '4P'), readField('amps', '40A'), readField('sensitivity', '30mA')].join('\\n');",
+                  "        editingElement.text = [\n          readField('poles', '4P'),\n          readField('amps', '40A'),\n          readField('sensitivity', '30mA'),\n          readField('differentialType', 'Tipo AC')\n        ].join('\\n');"
+              ),
+          ]
+
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'Reemplazo no seguro: se esperaban 1 coincidencia y hay {count}: {old[:90]!r}')
+              text = text.replace(old, new, 1)
+
+          required = [
+              "const DIFFERENTIAL_TYPE_OPTIONS = ['Tipo A', 'Tipo AC'];",
+              "key: 'differentialType'",
+              "differentialType: lines.find",
+              "30mA\\nTipo AC",
+              "lines = [...lines, 'Tipo AC'];",
+              "readField('differentialType', 'Tipo AC')",
+          ]
+          for needle in required:
+              if needle not in text:
+                  raise SystemExit(f'Falta comprobacion: {needle}')
+
+          path.write_text(text, encoding='utf-8')
+
+          scripts = re.findall(r'<script>([\s\S]*?)</script>', text)
+          if not scripts:
+              raise SystemExit('No se encontro el script principal')
+          Path('/tmp/unifilar.js').write_text(scripts[-1], encoding='utf-8')
+          PY
+
+          node --check /tmp/unifilar.js
+
+      - name: Guardar cambio y retirar workflow temporal
+        shell: bash
+        run: |
+          rm -f .github/workflows/patch-differential-type.yml
+          git config user.name "ChatGPT"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "Añadir tipos A y AC a diferenciales"
+          git push
