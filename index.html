@@ -550,6 +550,20 @@
     </div>
   </div>
 
+  <div class="editor-backdrop" id="jsonReplaceConfirm" hidden>
+    <div class="editor-dialog" role="dialog" aria-modal="true" aria-labelledby="jsonReplaceTitle">
+      <h2 id="jsonReplaceTitle">Reemplazar esquema actual</h2>
+      <p class="editor-help">
+        Ya hay un esquema abierto. Al continuar, se eliminarán los elementos actuales
+        y se cargarán los del archivo importado.
+      </p>
+      <div class="editor-actions">
+        <button class="btn-hdr" type="button" onclick="cancelJsonReplace()">Cancelar</button>
+        <button class="btn-hdr btn-primary" type="button" onclick="confirmJsonReplace()">Reemplazar</button>
+      </div>
+    </div>
+  </div>
+
   <div class="editor-backdrop" id="exportValidation" hidden>
     <div class="editor-dialog" role="dialog" aria-modal="true" aria-labelledby="exportValidationTitle">
       <h2 id="exportValidationTitle">Revisar antes de exportar</h2>
@@ -888,6 +902,7 @@
       'TEXTO'
     ]);
     let importedXispaObservations = [];
+    let pendingJsonImportPayload = null;
 
     function openJsonImport() {
       document.getElementById('jsonImportText').value = '';
@@ -901,7 +916,42 @@
 
     function closeJsonImport() {
       document.getElementById('jsonImportEditor').hidden = true;
+      document.getElementById('jsonReplaceConfirm').hidden = true;
+      pendingJsonImportPayload = null;
     }
+
+    function openJsonReplaceConfirm(payload) {
+      pendingJsonImportPayload = payload;
+      document.getElementById('jsonReplaceConfirm').hidden = false;
+    }
+
+    function cancelJsonReplace() {
+      document.getElementById('jsonReplaceConfirm').hidden = true;
+      pendingJsonImportPayload = null;
+    }
+
+    function confirmJsonReplace() {
+      if (!pendingJsonImportPayload) return;
+      const payload = pendingJsonImportPayload;
+      pendingJsonImportPayload = null;
+      document.getElementById('jsonReplaceConfirm').hidden = true;
+
+      const report = importXispaPayload(payload);
+      if (report.errors.length) {
+        showJsonImportReport(report);
+        return;
+      }
+
+      closeJsonImport();
+    }
+
+    document.getElementById('jsonReplaceConfirm').addEventListener('mousedown', event => {
+      if (event.target.id === 'jsonReplaceConfirm') cancelJsonReplace();
+    });
+
+    document.getElementById('jsonReplaceConfirm').addEventListener('keydown', event => {
+      if (event.key === 'Escape') cancelJsonReplace();
+    });
 
     document.getElementById('jsonImportFile').addEventListener('change', event => {
       const file = event.target.files && event.target.files[0];
@@ -1244,16 +1294,6 @@
 
       if (report.errors.length) return report;
 
-      if (options.askReplace && elements.length > 1) {
-        const replace = window.confirm(
-          'El esquema actual contiene elementos. ¿Quieres sustituirlo por el esquema importado?'
-        );
-        if (!replace) {
-          report.warnings.push('Importación cancelada por el usuario.');
-          return report;
-        }
-      }
-
       elements = [];
       selectedElement = null;
       selectedIds.clear();
@@ -1330,8 +1370,28 @@
         return;
       }
 
-      const report = importXispaPayload(payload, { askReplace: true });
-      showJsonImportReport(report);
+      const validation = validateXispaPayload(payload);
+      if (validation.errors.length) {
+        showJsonImportReport({
+          errors: validation.errors,
+          warnings: validation.warnings,
+          imported: 0
+        });
+        return;
+      }
+
+      if (elements.length > 1) {
+        openJsonReplaceConfirm(payload);
+        return;
+      }
+
+      const report = importXispaPayload(payload);
+      if (report.errors.length) {
+        showJsonImportReport(report);
+        return;
+      }
+
+      closeJsonImport();
     }
 
     // Punto de entrada estable para una futura integración directa Xispa → CAD.
@@ -1339,7 +1399,7 @@
       if (typeof payload === 'string') {
         payload = JSON.parse(payload);
       }
-      return importXispaPayload(payload, { askReplace: false });
+      return importXispaPayload(payload);
     };
 
     let pendingConnection = null;
