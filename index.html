@@ -415,6 +415,7 @@
       </div>
     </div>
     <div class="header-btns">
+      <button class="btn-hdr" type="button" onclick="openJsonImport()">Importar JSON</button>
       <button class="btn-hdr btn-primary" onclick="exportarPNG()">Exportar PNG</button>
     </div>
   </header>
@@ -521,6 +522,30 @@
       <div class="editor-actions">
         <button class="btn-hdr" type="button" onclick="closeCajetinEditor()">Cancelar</button>
         <button class="btn-hdr btn-primary" type="button" onclick="saveCajetinEditor()">Guardar cambios</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="editor-backdrop" id="jsonImportEditor" hidden>
+    <div class="editor-dialog" role="dialog" aria-modal="true" aria-labelledby="jsonImportTitle">
+      <h2 id="jsonImportTitle">Importar esquema de Xispa</h2>
+      <p class="editor-help">Pega el JSON XISPA-CAD v1.0 o carga un archivo .json. Los datos desconocidos se conservarán como pendientes, no se inventarán.</p>
+
+      <div class="editor-field">
+        <label for="jsonImportFile">Archivo JSON</label>
+        <input id="jsonImportFile" type="file" accept=".json,application/json">
+      </div>
+
+      <div class="editor-field">
+        <label for="jsonImportText">JSON del esquema</label>
+        <textarea id="jsonImportText" spellcheck="false" placeholder='{"schemaVersion":"1.0","elements":[]}'></textarea>
+      </div>
+
+      <div class="validation-summary" id="jsonImportReport" hidden></div>
+
+      <div class="editor-actions">
+        <button class="btn-hdr" type="button" onclick="closeJsonImport()">Cancelar</button>
+        <button class="btn-hdr btn-primary" type="button" onclick="importJsonFromEditor()">Importar esquema</button>
       </div>
     </div>
   </div>
@@ -849,6 +874,473 @@
         toggleMobileLibrary(false);
       }
     }
+
+    // XISPA JSON IMPORT v1.0
+    const XISPA_SCHEMA_VERSION = '1.0';
+    const XISPA_ELEMENT_TYPES = new Set([
+      'ACOMETIDA',
+      'IGA',
+      'GENERAL_FILA',
+      'DIFERENCIAL',
+      'SOBRETENSION',
+      'PIA',
+      'TIERRA',
+      'TEXTO'
+    ]);
+    let importedXispaObservations = [];
+
+    function openJsonImport() {
+      document.getElementById('jsonImportText').value = '';
+      document.getElementById('jsonImportFile').value = '';
+      const report = document.getElementById('jsonImportReport');
+      report.hidden = true;
+      report.innerHTML = '';
+      document.getElementById('jsonImportEditor').hidden = false;
+      requestAnimationFrame(() => document.getElementById('jsonImportText').focus());
+    }
+
+    function closeJsonImport() {
+      document.getElementById('jsonImportEditor').hidden = true;
+    }
+
+    document.getElementById('jsonImportFile').addEventListener('change', event => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        document.getElementById('jsonImportText').value = String(reader.result || '');
+      };
+      reader.onerror = () => {
+        showJsonImportReport({
+          errors: ['No se ha podido leer el archivo JSON seleccionado.'],
+          warnings: [],
+          imported: 0
+        });
+      };
+      reader.readAsText(file);
+    });
+
+    document.getElementById('jsonImportEditor').addEventListener('mousedown', event => {
+      if (event.target.id === 'jsonImportEditor') closeJsonImport();
+    });
+
+    document.getElementById('jsonImportEditor').addEventListener('keydown', event => {
+      if (event.key === 'Escape') closeJsonImport();
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') importJsonFromEditor();
+    });
+
+    function showJsonImportReport(report) {
+      const container = document.getElementById('jsonImportReport');
+      container.innerHTML = '';
+
+      const status = document.createElement('p');
+      status.className = 'editor-help';
+      status.textContent = report.errors.length
+        ? 'La importación contiene incidencias.'
+        : 'Importación completada: ' + report.imported + ' elemento(s).';
+      container.appendChild(status);
+
+      appendValidationGroup(container, 'Errores', report.errors);
+      appendValidationGroup(container, 'Advertencias', report.warnings, 'warning');
+      container.hidden = false;
+    }
+
+    function importedNumber(value) {
+      if (value === null || value === undefined || value === '') return null;
+      const parsed = Number(String(value).replace(',', '.'));
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    function importedText(value, fallback = '?') {
+      if (value === null || value === undefined) return fallback;
+      const normalized = String(value).trim();
+      return normalized || fallback;
+    }
+
+    function importedPoleLabel(value) {
+      const number = importedNumber(value);
+      return number === null ? '?P' : String(number) + 'P';
+    }
+
+    function importedAmpLabel(value) {
+      const number = importedNumber(value);
+      return number === null ? '?A' : String(number).replace('.', ',') + 'A';
+    }
+
+    function importedSectionLabel(value) {
+      const number = importedNumber(value);
+      if (number === null) return '?mm²';
+      return String(number).replace('.', "'") + 'mm²';
+    }
+
+    function importedDistanceLabel(value) {
+      const number = importedNumber(value);
+      return number === null ? '(?)' : '(' + String(number).replace('.', ',') + 'mts.)';
+    }
+
+    function importedSurgeType(source) {
+      const raw = String(source && source.data && source.data.surgeType || '').toUpperCase();
+      if (raw === 'PERMANENTES') return 'PERMANENTES';
+      if (raw === 'COMBINADA_PT') return 'COMBINADA_PT';
+      if (raw === 'TRANSITORIAS') return 'TRANSITORIAS';
+      return 'DESCONOCIDO';
+    }
+
+    function isImportedIntegratedSurge(source) {
+      const type = importedSurgeType(source);
+      return type === 'PERMANENTES' || type === 'COMBINADA_PT';
+    }
+
+    function importedElementText(source) {
+      const data = source.data || {};
+
+      if (source.type === 'ACOMETIDA') {
+        return [
+          importedPoleLabel(data.poles).replace(/P$/, '') + 'x' + importedSectionLabel(data.sectionMm2),
+          importedDistanceLabel(data.distanceM),
+          importedText(data.origin)
+        ].join('\n');
+      }
+
+      if (source.type === 'IGA' || source.type === 'GENERAL_FILA') {
+        return [
+          importedPoleLabel(data.poles),
+          importedAmpLabel(data.amps)
+        ].join('\n');
+      }
+
+      if (source.type === 'DIFERENCIAL') {
+        const differentialType = String(data.differentialType || '').toUpperCase();
+        const typeLabel = differentialType === 'A'
+          ? 'Tipo A'
+          : (differentialType === 'AC' ? 'Tipo AC' : 'Tipo DESCONOCIDO');
+        const sensitivity = importedNumber(data.sensitivityMa);
+        return [
+          importedPoleLabel(data.poles),
+          importedAmpLabel(data.amps),
+          sensitivity === null ? '?mA' : String(sensitivity).replace('.', ',') + 'mA',
+          typeLabel
+        ].join('\n');
+      }
+
+      if (source.type === 'SOBRETENSION') {
+        const surgeType = importedSurgeType(source);
+        const typeLabel = surgeType === 'PERMANENTES'
+          ? 'Permanentes'
+          : (surgeType === 'COMBINADA_PT'
+            ? 'Combinada P+T'
+            : (surgeType === 'TRANSITORIAS' ? 'Transitorias' : 'Tipo desconocido'));
+        const ka = importedNumber(data.ka);
+        return [
+          typeLabel,
+          importedPoleLabel(data.poles),
+          importedAmpLabel(data.amps),
+          ka === null ? '?kA' : String(ka).replace('.', ',') + 'kA'
+        ].join('\n');
+      }
+
+      if (source.type === 'PIA') {
+        return [
+          importedPoleLabel(data.poles),
+          importedAmpLabel(data.amps),
+          importedText(data.circuit, 'Circuito ?'),
+          importedSectionLabel(data.sectionMm2),
+          importedDistanceLabel(data.distanceM)
+        ].join('\n');
+      }
+
+      if (source.type === 'TIERRA') {
+        const section = importedText(data.sectionLabel, 'Sección ?');
+        const resistance = importedNumber(data.resistanceOhm);
+        return resistance === null
+          ? section
+          : section + '\n' + String(resistance).replace('.', ',') + 'Ω';
+      }
+
+      if (source.type === 'TEXTO') {
+        return importedText(data.text, 'Nota');
+      }
+
+      return '';
+    }
+
+    function importedParentCompatible(source, parentSource) {
+      if (!source.parentId) {
+        return ['ACOMETIDA', 'TIERRA', 'TEXTO'].includes(source.type);
+      }
+      if (!parentSource) return false;
+
+      if (source.type === 'IGA') return parentSource.type === 'ACOMETIDA';
+
+      if (source.type === 'GENERAL_FILA') {
+        return parentSource.type === 'IGA' ||
+          (parentSource.type === 'SOBRETENSION' && isImportedIntegratedSurge(parentSource));
+      }
+
+      if (source.type === 'DIFERENCIAL') {
+        return parentSource.type === 'IGA' ||
+          parentSource.type === 'GENERAL_FILA' ||
+          (parentSource.type === 'SOBRETENSION' && isImportedIntegratedSurge(parentSource));
+      }
+
+      if (source.type === 'SOBRETENSION') {
+        return isImportedIntegratedSurge(source)
+          ? parentSource.type === 'ACOMETIDA'
+          : parentSource.type === 'IGA';
+      }
+
+      if (source.type === 'PIA') return parentSource.type === 'DIFERENCIAL';
+
+      return false;
+    }
+
+    function validateXispaPayload(payload) {
+      const errors = [];
+      const warnings = [];
+      const normalized = [];
+
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        errors.push('El JSON raíz debe ser un objeto.');
+        return { errors, warnings, normalized };
+      }
+
+      if (String(payload.schemaVersion || '') !== XISPA_SCHEMA_VERSION) {
+        errors.push(
+          'schemaVersion no compatible. Se esperaba ' +
+          XISPA_SCHEMA_VERSION + '.'
+        );
+      }
+
+      if (!Array.isArray(payload.elements)) {
+        errors.push('El JSON debe contener un array "elements".');
+        return { errors, warnings, normalized };
+      }
+
+      const seenIds = new Set();
+      payload.elements.forEach((source, index) => {
+        if (!source || typeof source !== 'object') {
+          warnings.push('Elemento ' + (index + 1) + ': formato no válido; se omitirá.');
+          return;
+        }
+
+        const id = String(source.id || '').trim();
+        if (!id) {
+          warnings.push('Elemento ' + (index + 1) + ': falta id; se omitirá.');
+          return;
+        }
+        if (seenIds.has(id)) {
+          warnings.push('ID duplicado "' + id + '"; la repetición se omitirá.');
+          return;
+        }
+        seenIds.add(id);
+
+        const type = String(source.type || '').trim().toUpperCase();
+        if (!XISPA_ELEMENT_TYPES.has(type)) {
+          warnings.push(id + ': tipo "' + type + '" no soportado; se omitirá.');
+          return;
+        }
+
+        normalized.push({
+          ...source,
+          id,
+          type,
+          parentId: source.parentId === null || source.parentId === undefined
+            ? null
+            : String(source.parentId).trim()
+        });
+      });
+
+      const byId = new Map(normalized.map(source => [source.id, source]));
+      const supplyCount = normalized.filter(source => source.type === 'ACOMETIDA').length;
+      if (supplyCount > 1) {
+        errors.push('El esquema contiene más de una acometida.');
+      }
+      if (supplyCount === 0) {
+        warnings.push('El esquema no contiene acometida.');
+      }
+
+      normalized.forEach(source => {
+        if (source.parentId && !byId.has(source.parentId)) {
+          warnings.push(
+            source.id + ': parentId "' + source.parentId +
+            '" no existe; se importará sin conexión.'
+          );
+          source.parentId = null;
+          return;
+        }
+
+        if (source.parentId) {
+          const parentSource = byId.get(source.parentId);
+          if (!importedParentCompatible(source, parentSource)) {
+            warnings.push(
+              source.id + ': conexión ' + parentSource.type + ' → ' +
+              source.type + ' no admitida; se importará sin conexión.'
+            );
+            source.parentId = null;
+          }
+        } else if (!['ACOMETIDA', 'TIERRA', 'TEXTO'].includes(source.type)) {
+          warnings.push(source.id + ': no tiene alimentación aguas arriba confirmada.');
+        }
+      });
+
+      const observations = Array.isArray(payload.observations) ? payload.observations : [];
+      observations.forEach(observation => {
+        if (!observation || typeof observation !== 'object') return;
+        const level = String(observation.level || 'INFO').toUpperCase();
+        const message = String(observation.message || '').trim();
+        if (!message) return;
+        warnings.push('Xispa [' + level + ']: ' + message);
+      });
+
+      return { errors, warnings, normalized };
+    }
+
+    function createImportedElement(source, parent) {
+      let placementType = source.type;
+      if (source.type === 'SOBRETENSION' && isImportedIntegratedSurge(source)) {
+        placementType = 'IGA';
+      }
+
+      const placement = getAutomaticPlacement(placementType, parent || null);
+      const elem = {
+        id: Date.now() + Math.random(),
+        type: source.type,
+        x: placement.x,
+        y: placement.y,
+        w: placement.w,
+        h: source.type === 'PIA' ? 140 : placement.h,
+        parentId: parent ? parent.id : null,
+        connectionOffsetY: parent
+          ? Math.max(30, (placement.y - getOutputPort(parent).y) / 2)
+          : null,
+        text: importedElementText(source),
+        xispaMeta: {
+          sourceId: source.id,
+          confidence: source.confidence || null,
+          fieldConfidence: source.fieldConfidence || null,
+          source: source.source || null
+        }
+      };
+
+      elements.push(elem);
+
+      if (parent && ['DIFERENCIAL', 'GENERAL_FILA'].includes(source.type)) {
+        const protectedBranchY = getIgaDownstreamBranchY(parent);
+        if (protectedBranchY !== null) {
+          elem.connectionOffsetY = protectedBranchY - getOutputPort(parent).y;
+        }
+      }
+
+      return elem;
+    }
+
+    function importXispaPayload(payload, options = {}) {
+      const validation = validateXispaPayload(payload);
+      const report = {
+        errors: [...validation.errors],
+        warnings: [...validation.warnings],
+        imported: 0
+      };
+
+      if (report.errors.length) return report;
+
+      if (options.askReplace && elements.length > 1) {
+        const replace = window.confirm(
+          'El esquema actual contiene elementos. ¿Quieres sustituirlo por el esquema importado?'
+        );
+        if (!replace) {
+          report.warnings.push('Importación cancelada por el usuario.');
+          return report;
+        }
+      }
+
+      elements = [];
+      selectedElement = null;
+      selectedIds.clear();
+      importedXispaObservations = Array.isArray(payload.observations)
+        ? payload.observations.slice()
+        : [];
+
+      const createdBySourceId = new Map();
+      const pending = validation.normalized.slice();
+      let guard = 0;
+
+      while (pending.length && guard < validation.normalized.length + 2) {
+        guard++;
+        let progress = false;
+
+        for (let index = pending.length - 1; index >= 0; index--) {
+          const source = pending[index];
+          const parent = source.parentId
+            ? createdBySourceId.get(source.parentId)
+            : null;
+
+          if (source.parentId && !parent) continue;
+
+          const elem = createImportedElement(source, parent || null);
+          createdBySourceId.set(source.id, elem);
+          pending.splice(index, 1);
+          report.imported++;
+          progress = true;
+        }
+
+        if (!progress) break;
+      }
+
+      pending.forEach(source => {
+        report.warnings.push(
+          source.id + ': no pudo resolverse su jerarquía; se importará sin conexión.'
+        );
+        const elem = createImportedElement({ ...source, parentId: null }, null);
+        createdBySourceId.set(source.id, elem);
+        report.imported++;
+      });
+
+      const title = payload.document && payload.document.title;
+      const address = payload.document && payload.document.address;
+      cajetin.titulo = title ? String(title) : 'Cuadro sin identificar';
+      cajetin.dir = address ? String(address) : 'Sin dirección';
+
+      selectedElement = null;
+      selectedIds.clear();
+      fitViewToContent();
+      return report;
+    }
+
+    function importJsonFromEditor() {
+      const raw = document.getElementById('jsonImportText').value.trim();
+      if (!raw) {
+        showJsonImportReport({
+          errors: ['No hay JSON para importar.'],
+          warnings: [],
+          imported: 0
+        });
+        return;
+      }
+
+      let payload;
+      try {
+        payload = JSON.parse(raw);
+      } catch (error) {
+        showJsonImportReport({
+          errors: ['JSON no válido: ' + error.message],
+          warnings: [],
+          imported: 0
+        });
+        return;
+      }
+
+      const report = importXispaPayload(payload, { askReplace: true });
+      showJsonImportReport(report);
+    }
+
+    // Punto de entrada estable para una futura integración directa Xispa → CAD.
+    window.importarEsquemaXispa = function(payload) {
+      if (typeof payload === 'string') {
+        payload = JSON.parse(payload);
+      }
+      return importXispaPayload(payload, { askReplace: false });
+    };
 
     let pendingConnection = null;
 
@@ -1320,7 +1812,7 @@
     function drawAcometida(el, isExporting) {
       const lineY = 10;
       const match = el.text.trim().match(/^(\d+)\s*[xX×]/);
-      const poles = match ? Math.max(1, Math.min(12, parseInt(match[1], 10))) : 1;
+      const poles = match ? Math.max(1, Math.min(12, parseInt(match[1], 10))) : 0;
 
       ctx.strokeStyle = '#000';
       ctx.fillStyle = '#000';
@@ -1469,7 +1961,7 @@
       if (text) {
         ctx.font = 'bold 9px "Courier New"';
         let lines = normalizeTextLines(text);
-        if (type === 'DIFERENCIAL' && !lines.some(line => /^Tipo\s+(A|AC)$/i.test(line))) {
+        if (type === 'DIFERENCIAL' && !lines.some(line => /^Tipo\s+/i.test(line))) {
           lines = [...lines, 'Tipo AC'];
         }
 
@@ -2431,7 +2923,7 @@
       const lines = normalizeTextLines(el.text);
       if (el.type === 'ACOMETIDA') {
         const cable = lines[0] || '2x16mm²';
-        const match = cable.match(/^(\d+)\s*[xX×]\s*(.+)$/);
+        const match = cable.match(/^(\d+|\?)\s*[xX×]\s*(.+)$/);
         return {
           poles: (match ? match[1] : '2') + 'P',
           section: match ? match[2] : '16mm²',
@@ -2444,13 +2936,13 @@
         poles: lines[0],
         amps: lines[1],
         sensitivity: lines[2],
-        differentialType: lines.find(line => /^Tipo\s+(A|AC)$/i.test(line)) || 'Tipo AC'
+        differentialType: lines.find(line => /^Tipo\s+/i.test(line)) || 'Tipo AC'
       };
       if (el.type === 'SOBRETENSION') {
         const legacyTransient = /^SPD\b|\bT[123]\b/i.test(lines[0] || '');
-        const poles = lines.find(line => /^(2P|4P)$/i.test(line));
-        const amps = lines.find(line => /^\d+(?:[.,]\d+)?\s*A$/i.test(line));
-        const breakingCapacity = lines.find(line => /^\d+(?:[.,]\d+)?\s*kA$/i.test(line));
+        const poles = lines.find(line => /^(2P|4P|\?P)$/i.test(line));
+        const amps = lines.find(line => /^(?:\d+(?:[.,]\d+)?|\?)\s*A$/i.test(line));
+        const breakingCapacity = lines.find(line => /^(?:\d+(?:[.,]\d+)?|\?)\s*kA$/i.test(line));
         const combined = /^Combinada P\+T$/i.test(lines[0] || '') ||
           /permanentes.+transitorias|transitorias.+permanentes/i.test(lines[0] || '');
         return {
@@ -2521,13 +3013,21 @@
           });
 
           const isStandard = field.options.includes(currentValue);
+          if (!isStandard && currentValue && !field.allowOther) {
+            const preservedOption = document.createElement('option');
+            preservedOption.value = currentValue;
+            preservedOption.textContent = currentValue;
+            select.appendChild(preservedOption);
+          }
           if (field.allowOther) {
             const otherOption = document.createElement('option');
             otherOption.value = '__other__';
             otherOption.textContent = 'Otros…';
             select.appendChild(otherOption);
           }
-          select.value = isStandard ? currentValue : (field.allowOther ? '__other__' : field.options[0]);
+          select.value = isStandard
+            ? currentValue
+            : (field.allowOther ? '__other__' : (currentValue || field.options[0]));
           wrapper.appendChild(select);
 
           if (field.allowOther) {
