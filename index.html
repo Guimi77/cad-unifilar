@@ -3365,21 +3365,36 @@
       ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
       draw(true);
 
-      const link = document.createElement('a');
-      link.download = 'esquema-unifilar.png';
-      link.href = canvas.toDataURL('image/png');
-      link.click();
+      canvas.toBlob(blob => {
+        try {
+          if (!blob) throw new Error('No se pudo generar el PNG');
 
-      viewWidth = previousState.viewWidth;
-      viewHeight = previousState.viewHeight;
-      viewX = previousState.viewX;
-      viewY = previousState.viewY;
-      viewZoom = previousState.viewZoom;
-      canvas.width = previousState.canvasWidth;
-      canvas.height = previousState.canvasHeight;
-      ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
-      updateZoomValue();
-      draw(false);
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.download = 'esquema-unifilar.png';
+          link.href = url;
+          link.type = 'image/png';
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+
+          setTimeout(() => URL.revokeObjectURL(url), 1500);
+        } catch (error) {
+          console.error('Error al exportar PNG:', error);
+          alert('No se ha podido generar el PNG. Prueba de nuevo o utiliza otro navegador.');
+        } finally {
+          viewWidth = previousState.viewWidth;
+          viewHeight = previousState.viewHeight;
+          viewX = previousState.viewX;
+          viewY = previousState.viewY;
+          viewZoom = previousState.viewZoom;
+          canvas.width = previousState.canvasWidth;
+          canvas.height = previousState.canvasHeight;
+          ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
+          updateZoomValue();
+          draw(false);
+        }
+      }, 'image/png');
     }
 
     resizeCanvas();
