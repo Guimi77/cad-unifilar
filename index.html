@@ -2282,25 +2282,39 @@
              bounds.bottom >= top && bounds.top <= bottom;
     }
 
-    function clampGroupDeltaYToConnection(deltaY) {
+    function clampGroupDeltaYToHierarchy(deltaY) {
       let minimumDeltaY = -Infinity;
+      let maximumDeltaY = Infinity;
+      const minimumVerticalGap = GRID;
 
       groupOrigins.forEach((origin, id) => {
-        const child = elements.find(el => el.id === id);
-        if (!child || !child.parentId || selectedIds.has(child.parentId)) return;
+        const movedElement = elements.find(el => el.id === id);
+        if (!movedElement) return;
 
-        const parent = elements.find(el => el.id === child.parentId);
-        if (!parent) return;
+        // Un elemento aguas abajo no puede cruzar hacia arriba su propia
+        // línea de derivación cuando el elemento padre no se mueve con él.
+        if (movedElement.parentId && !selectedIds.has(movedElement.parentId)) {
+          const parent = elements.find(el => el.id === movedElement.parentId);
+          if (parent) {
+            const connectionY = getSharedConnectionY(movedElement);
+            minimumDeltaY = Math.max(minimumDeltaY, connectionY - origin.y);
+          }
+        }
 
-        const connectionY = getSharedConnectionY(child);
+        // Y, a la inversa, un elemento aguas arriba nunca puede bajar por
+        // debajo de un hijo que permanece fijo. Se limita el movimiento
+        // usando el puerto de salida real del símbolo, no solo su coordenada Y.
+        const outputOffsetY = getOutputPort(movedElement).y - movedElement.y;
+        elements.forEach(child => {
+          if (child.parentId !== movedElement.id || selectedIds.has(child.id)) return;
 
-        // La entrada del símbolo nunca puede quedar por encima de su línea
-        // horizontal de derivación. Si se mueve un grupo, el límite más
-        // restrictivo conserva además todas sus posiciones relativas.
-        minimumDeltaY = Math.max(minimumDeltaY, connectionY - origin.y);
+          const maxForChild =
+            child.y - minimumVerticalGap - outputOffsetY - origin.y;
+          maximumDeltaY = Math.min(maximumDeltaY, maxForChild);
+        });
       });
 
-      return Math.max(deltaY, minimumDeltaY);
+      return Math.max(minimumDeltaY, Math.min(deltaY, maximumDeltaY));
     }
 
     canvas.addEventListener('mousedown', (e) => {
@@ -2474,7 +2488,7 @@
         const requestedDeltaY = anchorOrigin
           ? Math.round((anchorOrigin.y + rawDeltaY) / GRID) * GRID - anchorOrigin.y
           : Math.round(rawDeltaY / GRID) * GRID;
-        const deltaY = clampGroupDeltaYToConnection(requestedDeltaY);
+        const deltaY = clampGroupDeltaYToHierarchy(requestedDeltaY);
         elements.forEach(el => {
           const origin = groupOrigins.get(el.id);
           if (!origin) return;
@@ -2728,6 +2742,23 @@
       const diferenciales = elements.filter(el => el.type === 'DIFERENCIAL');
       const sobretensiones = elements.filter(el => el.type === 'SOBRETENSION');
       const pias = elements.filter(el => el.type === 'PIA');
+
+      // Coherencia geométrica: cada protección o cabecera aguas arriba debe
+      // quedar físicamente por encima de los elementos que alimenta.
+      elements.forEach(child => {
+        if (!child.parentId) return;
+        const parent = elements.find(el => el.id === child.parentId);
+        if (!parent) return;
+
+        const parentOutputY = getOutputPort(parent).y;
+        const childInputY = getInputPort(child).y;
+        if (parentOutputY + GRID > childInputY) {
+          errores.push(
+            parent.type + ' → ' + child.type +
+            ': un elemento aguas arriba no puede quedar a la misma altura o por debajo del elemento alimentado.'
+          );
+        }
+      });
 
       // Regla de coherencia del documento: un esquema de suministro simple
       // debe contener una única acometida.
